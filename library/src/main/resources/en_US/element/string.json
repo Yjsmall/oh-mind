@@ -1,0 +1,64 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "add_child",
+      "value": "Add child"
+    },
+    {
+      "name": "add_tags",
+      "value": "Add Tags"
+    },
+    {
+      "name": "add_parent",
+      "value": "Add parent"
+    },
+    {
+      "name": "add_sibling",
+      "value": "Add sibling"
+    },
+    {
+      "name": "remove_node",
+      "value": "Remove node"
+    },
+    {
+      "name": "move_up",
+      "value": "Move up"
+    },
+    {
+      "name": "move_down",
+      "value": "Move down"
+    },
+    {
+      "name": "fold_node",
+      "value": "Fold node"
+    },
+    {
+      "name": "expanded_node",
+      "value": "Expanded node"
+    },
+    {
+      "name": "link",
+      "value": "Link"
+    },
+    {
+      "name": "bidirectional_link",
+      "value": "Bidirectional Link"
+    },
+    {
+      "name": "new_node",
+      "value": "new node"
+    }
+  ]
+}

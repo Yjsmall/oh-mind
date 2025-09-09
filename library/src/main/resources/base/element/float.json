@@ -1,0 +1,16 @@
+{
+  "float": [
+    {
+      "name": "page_text_font_size",
+      "value": "50fp"
+    },
+    {
+      "name": "menu_width",
+      "value": "200"
+    },
+    {
+      "name": "line_width",
+      "value": "2"
+    }
+  ]
+}
