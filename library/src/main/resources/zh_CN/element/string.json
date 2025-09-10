@@ -1,0 +1,64 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "add_child",
+      "value": "添加子节点"
+    },
+    {
+      "name": "add_tags",
+      "value": "添加标签"
+    },
+    {
+      "name": "add_parent",
+      "value": "添加父节点"
+    },
+    {
+      "name": "add_sibling",
+      "value": "添加兄弟节点"
+    },
+    {
+      "name": "remove_node",
+      "value": "删除节点"
+    },
+    {
+      "name": "move_up",
+      "value": "上移节点"
+    },
+    {
+      "name": "move_down",
+      "value": "下移节点"
+    },
+    {
+      "name": "fold_node",
+      "value": "折叠节点"
+    },
+    {
+      "name": "expanded_node",
+      "value": "展开节点"
+    },
+    {
+      "name": "link",
+      "value": "连接节点"
+    },
+    {
+      "name": "bidirectional_link",
+      "value": "双向连接节点"
+    },
+    {
+      "name": "new_node",
+      "value": "新节点"
+    }
+  ]
+}

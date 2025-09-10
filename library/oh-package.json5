@@ -1,0 +1,24 @@
+
+{
+  "name": "@ohos/mind-elixir",
+  "types": "",
+  "keywords": [
+    "mind",
+    "OpenHarmony",
+    "HarmonyOS"
+  ],
+  "author": "ohos_tpc",
+  "description": "",
+  "main": "Index.ets",
+  "type": "module",
+  "repository": "",
+  "version": "4.0.0-rc.0",
+  "tags": [
+    "mind",
+    "OpenHarmony",
+    "HarmonyOS"
+  ],
+  "dependencies": {},
+  "license": "Apache License 2.0",
+  "devDependencies": {}
+}
