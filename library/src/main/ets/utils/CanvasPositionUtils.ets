@@ -143,16 +143,19 @@ export class CanvasPositionUtils{
     const scaleY = containerSize.height / mindContentSize.height;
     const scaleValue = Math.min(scaleX, scaleY, 2.0);
     const oldScale = this.mindElixir.getScaleVal();
-
     // 设置缩放比例
     this.mindElixir.setScaleVal(scaleValue);
     // 计算缩放导致的尺寸变化
     const canvasSize = nodeHelper.getCanvasSize();
     const widthChange = (canvasSize.width * oldScale - canvasSize.width * scaleValue) / 2;
     const heightChange = (canvasSize.height * oldScale - canvasSize.height * scaleValue) / 2;
-    // 设置居中位置
-    this.updatePosition(this.currentPosition.offsetX - widthChange,
-      this.currentPosition.offsetY - heightChange);
+    // 计算居中位置
+    const scaledContentWidth = mindContentSize.width * scaleValue;
+    const scaledContentHeight = mindContentSize.height * scaleValue;
+    const offsetX = (containerSize.width - scaledContentWidth) / 2;
+    const offsetY = (containerSize.height - scaledContentHeight) / 2;
+    this.updatePosition(this.currentPosition.offsetX - widthChange + offsetX,
+      this.currentPosition.offsetY - heightChange + offsetY);
     this.saveCurrentPosition();
   }
 }

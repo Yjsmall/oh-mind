@@ -42,6 +42,7 @@ export struct MindArrowLabel {
       TextInput({ text: this.arrowData.label, controller: this.controller })
         .width('auto')
         .fontSize(this.fontSize)
+        .fontColor(Color.Red)
         .height(30)
         .padding(0)
         .margin(0)
@@ -54,7 +55,7 @@ export struct MindArrowLabel {
         })
         .onBlur(() => {
           this.arrowLabelEdit = false;
-          this.model.changeLinkLabel(this.arrowData.id, this.newLabel);
+          this.model.updateLinkLabel(this.arrowData.id, this.newLabel);
           this.labelWidth = this.estimateTextWidth(this.newLabel);
         });
     } else {

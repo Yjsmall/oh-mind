@@ -69,8 +69,6 @@ export interface NodeStyle {
 export interface MindElixirData {
   nodeData: NodeObj;
   arrows?: Arrow[];
-  summaries?: Summary[];
-  direction?: number;
 }
 
 export interface NodeObj {
@@ -172,4 +170,5 @@ export interface MenuOptionItem {
   value: ResourceStr;
   level: number;
   action: () => void;
+  id: string;
 }

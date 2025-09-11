@@ -27,8 +27,7 @@ interface MenuItem {
 @Component
 export default struct MenuBar {
   @Link model: MindElixirCore;
-  private zoomCtrl:ZoomUtils = UtilsManager.getZoomUtils(this.model.getInstanceId())!;
-
+  private zoomCtrl: ZoomUtils = UtilsManager.getZoomUtils(this.model.getInstanceId())!;
   // 定义菜单项数据
   private menuItems: Array<MenuItem> = [
     {
@@ -40,7 +39,7 @@ export default struct MenuBar {
     {
       image: $r("app.media.reduce"),
       action: () => {
-       this.zoomCtrl.zoomOut();
+        this.zoomCtrl.zoomOut();
       }
     },
     {
@@ -76,15 +75,7 @@ export default struct MenuBar {
         this.model.setMindDirection(3);
       },
       angle: 270
-    },
-    // {
-    //   image: $r("app.media.export"),
-    //   action: () => {
-    //     const renderer = new MindMapRenderer(this.model);
-    //     renderer.init();
-    //     renderer.saveImage();
-    //   }
-    // }
+    }
   ];
 
   build() {
@@ -95,14 +86,14 @@ export default struct MenuBar {
           .width(30)
           .rotate({ angle: item.angle ?? 0 })
           .onClick(item.action)
-          .margin({ left: index === 0 ? 0 : 10 })
-      })
+          .margin({ left: index === 0 ? 0 : 10 });
+      });
     }
     .height(50)
     .justifyContent(FlexAlign.SpaceAround)
     .position({ bottom: 50, right: 50 })
     .border({ width: 2, color: '#ffa09f9f' })
     .backgroundColor('#fff')
-    .padding(10)
+    .padding(10);
   }
 }

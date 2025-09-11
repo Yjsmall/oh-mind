@@ -20,7 +20,7 @@ import { NodeHelper } from '../controller/NodeHelper';
 import { UtilsManager } from '../utils/UtilsManager';
 
 @Component
-export default struct TagsPopup{
+export default struct TagsPopup {
   @Link model: MindElixirCore;
   @State tagStr: string = '';
   @State allTags: string[] = [];
@@ -108,8 +108,9 @@ export default struct TagsPopup{
         }.height(80).width('90%').clip(true);
 
       }
-      .width(500)
-      .height(340)
+      .constraintSize({ maxWidth: 500, maxHeight: 300 })
+      .width('70%')
+      .height('40%')
       .padding({ top: 20, bottom: 20 })
       .backgroundColor('#fff')
       .border({ width: 1, color: '#e2e2e2' })

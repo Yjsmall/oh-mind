@@ -16,7 +16,6 @@
 import { MindElixirData } from '@ohos/mind-elixir';
 
 const mindElixirData: MindElixirData = {
-  direction: 1,
   nodeData: {
     id: 'me-root',
     topic: 'HTML structure',

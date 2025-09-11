@@ -19,7 +19,7 @@ import { NodeGeometry } from './NodeGeometry';
 import { NodeHelper } from '../controller/NodeHelper';
 import { UtilsManager } from '../utils/UtilsManager';
 
-export class MindLineRender{
+export class MindLineRender {
   private static instanceMap = new Map<string, MindLineRender>();
   private context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
   private nodes: NodeObj[] | null = null;
@@ -232,6 +232,9 @@ export class MindLineRender{
   private drawLink(arrow: Arrow): void {
     const startNode = this.nodeHelper?.findNodeById(this.nodeHelper.getTreeNodeData(), arrow.from)!;
     const endNode = this.nodeHelper?.findNodeById(this.nodeHelper.getTreeNodeData(), arrow.to)!;
+    if (!startNode || !endNode) {
+      return;
+    }
     let start: Coordinate = {
       x: startNode.x! + startNode.width!,
       y: startNode.y! + (startNode.height!) / 2
@@ -241,15 +244,15 @@ export class MindLineRender{
       y: endNode.y! + (endNode.height!) / 2
     };
     arrow.start = start;
-    arrow.end =end;
+    arrow.end = end;
     arrow.delta1 = {
       x: start.x! + 100,
       y: start.y!
-    }
+    };
     arrow.delta2 = {
       x: end.x! + 100,
       y: end.y!
-    }
+    };
     this.drawBezierCurve(arrow.start!, arrow.end!, arrow.delta1, arrow.delta2);
     if (arrow.bidirectional) {
       this.drawArrow(arrow.end!, arrow.start!, arrow.delta2, arrow.delta1, 1);

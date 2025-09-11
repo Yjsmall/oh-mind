@@ -56,7 +56,7 @@ export default struct MindElixir {
         TagsPopup({ model: this.model });
       }
 
-      if(this.showMenu) {
+      if (this.showMenu) {
         MenuBar({ model: this.model });
       }
 

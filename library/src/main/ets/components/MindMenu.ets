@@ -28,49 +28,56 @@ export struct MindMenuItem {
       level: 0,
       action: () => {
         this.model.add(this.currentNode.id);
-      }
+      },
+      id: 'add_child',
     },
     {
       value: $r('app.string.add_tags'),
       level: 0,
       action: () => {
         PopupEventsUtils.getInstance().open();
-      }
+      },
+      id: 'add_tags',
     },
     {
       value: $r('app.string.add_parent'),
       level: 1,
       action: () => {
         this.model.addParent(this.currentNode.id);
-      }
+      },
+      id: 'add_parent',
     },
     {
       value: $r('app.string.add_sibling'),
       level: 1,
       action: () => {
         this.model.addSibling(this.currentNode.id);
-      }
+      },
+      id: 'add_sibling',
     },
     {
       value: $r('app.string.remove_node'),
       level: 1,
       action: () => {
         this.model.remove(this.currentNode.id);
-      }
+      },
+      id: 'remove_node',
     },
     {
       value: $r('app.string.move_up'),
       level: 1,
       action: () => {
         this.model.move(this.currentNode.id, MoveDirection.UP);
-      }
+      },
+      id: 'move_up',
     },
     {
       value: $r('app.string.move_down'),
       level: 1,
       action: () => {
         this.model.move(this.currentNode.id, MoveDirection.DOWN);
-      }
+      },
+      id: 'move_down',
     },
     {
       value: this.currentNode.expanded ? $r('app.string.fold_node') : $r('app.string.expanded_node'),
@@ -78,21 +85,24 @@ export struct MindMenuItem {
       action: () => {
         this.currentNode.expanded ? this.model.foldNode(this.currentNode.id) :
         this.model.expandedNode(this.currentNode.id);
-      }
+      },
+      id: 'fold_or_expanded',
     },
     {
       value: $r('app.string.link'),
       level: 0,
       action: () => {
         this.model.startLink(this.currentNode.id, true);
-      }
+      },
+      id: 'link',
     },
     {
       value: $r('app.string.bidirectional_link'),
       level: 0,
       action: () => {
         this.model.startLink(this.currentNode.id, true, true);
-      }
+      },
+      id: 'bidirectional_link',
     }
   ];
 
@@ -116,8 +126,8 @@ export struct MindMenuItem {
       if (this.currentNode.level! < 1) {
         return item.level === 0;
       }
-      if (item.value === 'Fold node' || item.value === 'Expanded node') {
-        return this.currentNode.children && this.currentNode.children.length > 0;
+      if (item.id === 'fold_or_expanded') {
+        return !!this.currentNode?.children?.length;
       }
       return true;
     });
