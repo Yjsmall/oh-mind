@@ -21,8 +21,9 @@ import { generateId } from '../utils/Tools';
 
 const DEFAULT_CANVAS_SIZE: CanvasSize = {
   width: 3000,
-  height: 2000
-}
+  height: 6000
+};
+
 export class NodeHelper {
   private mind: MindElixirCore;
   private treeNode: NodeObj | null = null;
@@ -173,7 +174,7 @@ export class NodeHelper {
    * @param index 在父节点children中的索引
    * @returns 父节点信息或null
    */
-  public  findNodeAndParent(
+  public findNodeAndParent(
     currentNode: NodeObj | null,
     nodeId: string,
     parent?: NodeObj,

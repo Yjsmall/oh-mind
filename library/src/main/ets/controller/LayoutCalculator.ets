@@ -20,7 +20,7 @@ import { UtilsManager } from '../utils/UtilsManager';
 import { CanvasPositionUtils } from '../utils/CanvasPositionUtils';
 import { NodeHelper } from '../controller/NodeHelper';
 
-export class MindMapLayout{
+export class MindMapLayout {
   // 布局常量配置
   private static readonly CANVAS_PADDING = 100;
   private static readonly TAGS_WIDTH = 24;
@@ -32,9 +32,8 @@ export class MindMapLayout{
   private static maxWidth: number = 200;
   private static DEFAULT_CANVAS_SIZE: CanvasSize = {
     width: 3000,
-    height: 2000
+    height: 6000
   };
-
 
   /**
    * 计算节点布局并返回画布大小
@@ -78,7 +77,6 @@ export class MindMapLayout{
       rootX = savedRootPosition.x;
       rootY = savedRootPosition.y;
       MindMapLayout.layoutNode(root, rootX, rootY, 0, MindMapLayout.layoutDirection);
-
       return canvasSize;
     } else {
       rootX = -tempBounds.minX + MindMapLayout.CANVAS_PADDING;
@@ -99,7 +97,7 @@ export class MindMapLayout{
 
     const padding = node.style?.padding ?? MindMapLayout.textPadding;
     node.width = nodeSize.width + 2 * padding;
-    if(node.tags?.length) {
+    if (node.tags?.length) {
       node.width = nodeSize.width + 2 * padding + MindMapLayout.TAGS_WIDTH;
     }
     node.height = nodeSize.height + 2 * padding;

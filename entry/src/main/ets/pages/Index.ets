@@ -14,11 +14,11 @@
  */
 
 import { MindElixir, MindElixirCore, MindElixirData, NodeOption, LayoutDirection } from '@ohos/mind-elixir';
-import mindElixirData from '../model/MindElixirData2';
+import mindElixirData from '../model/MindElixirData3';
 
 @Entry
 @Component
-struct Index{
+struct Index {
   private mindOption: NodeOption = {
     locale: 'zh',
     draggable: true,
@@ -26,11 +26,12 @@ struct Index{
     toolBar: true,
     allowUndo: true,
     contextMenu: true,
-    layout: LayoutDirection.TOP,
+    layout: LayoutDirection.RIGHT,
     nodeShape: 'line',
+    mindInViewport: true,
     nodeSpacing: {
-      horizontal: 80,
-      vertical: 80
+      horizontal: 50,
+      vertical: 50
     },
     nodeStyle: {
       fontSize: 20,

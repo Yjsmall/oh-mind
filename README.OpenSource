@@ -1,0 +1,11 @@
+[
+    {
+        "Name": "SmartRefreshLayout",
+        "License": "Apache License 2.0",
+        "License File": " LICENSE ",
+        "Version Number": "2.0.5",
+        "Owner" : "xiafeng@huawei.com",
+        "Upstream URL": "https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir",
+        "Description": "ohos_mind_elixir 是一个基于 HarmonyOS 平台开发的轻量级、高性能思维导图框架，致力于为开发者提供一站式的思维可视化解决方案。该框架深度适配 HarmonyOS 系统特性，支持跨设备协同和分布式能力，帮助开发者快速构建具有专业级体验的思维导图应用。"
+    }
+]

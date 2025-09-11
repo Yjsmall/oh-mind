@@ -15,7 +15,6 @@
 
 import {
   Arrow,
-  Coordinate,
   DragOrientation,
   LayoutDirection,
   MindElixirData,
@@ -65,7 +64,7 @@ const DEFAULT_OPTIONS: NodeOption = {
 };
 
 
-export class MindElixirCore{
+export class MindElixirCore {
   private mindElixirData: MindElixirData | null = null;
   private instanceId: string;
   private nodeHelper: NodeHelper;
@@ -175,11 +174,11 @@ export class MindElixirCore{
       }
     }
 
-    if(userOptions.lineStyle) {
-      if(userOptions.lineStyle.width !== undefined) {
+    if (userOptions.lineStyle) {
+      if (userOptions.lineStyle.width !== undefined) {
         mergedOptions.lineStyle!.width = userOptions.lineStyle.width;
       }
-      if(userOptions.lineStyle.color !== undefined) {
+      if (userOptions.lineStyle.color !== undefined) {
         mergedOptions.lineStyle!.color = userOptions.lineStyle.color;
       }
     }
@@ -216,10 +215,10 @@ export class MindElixirCore{
     this.nodeHelper.calculateNodePosition(mindElixirData);
     this.initCanvas();
     this.notifyUpdate();
-    if(this.options.allowUndo) {
+    if (this.options.allowUndo) {
       this.recordHistory();
     }
-    if(!this.originMindElixirData?.arrows) {
+    if (!this.originMindElixirData?.arrows) {
       this.originMindElixirData!.arrows = [];
     }
   }
@@ -357,7 +356,9 @@ export class MindElixirCore{
 
     // 查找要删除的节点及其父节点
     const result = this.nodeHelper.findNodeAndParent(originNodeData, id);
-    const arrowIndex = this.originMindElixirData?.arrows?.findIndex(item => item.id === id);
+    const arrowIndex = this.originMindElixirData?.arrows?.findIndex(item => {
+      return item.from === id || item.to === id;
+    });
     if (arrowIndex !== undefined && arrowIndex !== -1) {
       this.originMindElixirData?.arrows?.splice(arrowIndex, 1);
       this.refresh();
@@ -575,12 +576,11 @@ export class MindElixirCore{
    * @param arrowId 箭头ID
    * @param newLabel 新标签文本
    */
-  public changeLinkLabel(arrowId: string, newLabel: string) {
+  public updateLinkLabel(arrowId: string, newLabel: string) {
     const arrow = this.originMindElixirData?.arrows?.find((item: Arrow) => item.id === arrowId);
     arrow!.label = newLabel;
     this.refresh();
   }
-
 
 
   /**
@@ -596,11 +596,10 @@ export class MindElixirCore{
    * 设置思维导图布局方向
    * @param direction 布局方向
    */
-  public setMindDirection(direction: number) {
+  public setMindDirection(direction: LayoutDirection) {
     this.options.layout = direction;
-    this.nodeHelper.clearRootPosition();
     this.refresh();
-    this.positionCtrl.adjustZoomToFitContainer();
+    this.resetPosition();
   }
 
   /**
@@ -608,7 +607,7 @@ export class MindElixirCore{
    * @returns 布局方向
    */
   public getMindDirection(): LayoutDirection {
-    return this.originMindElixirData?.direction ?? LayoutDirection.RIGHT;
+    return this.options.layout ?? LayoutDirection.RIGHT;
   }
 
   /**
@@ -707,7 +706,7 @@ export class MindElixirCore{
    * 获取选中节点ID
    * @returns 选中节点ID或空字符串
    */
-  public getSelectedNodeId(): string | null {
+  public getSelectedNodeId(): string {
     return this.selectedNodeId ?? '';
   }
 
@@ -735,8 +734,7 @@ export class MindElixirCore{
     if (this.originMindElixirData) {
       const originNodeData = this.getNodeData();
       const node = this.nodeHelper.findNodeById(originNodeData, nodeId);
-      const arrow = this.originMindElixirData?.arrows?.find(item => item.id === nodeId);
-      if (node || arrow) {
+      if (node) {
         this.selectedNodeId = nodeId;
         return true;
       }

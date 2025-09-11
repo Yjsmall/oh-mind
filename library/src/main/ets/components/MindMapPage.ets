@@ -27,7 +27,7 @@ import { MindArrowLabel } from './MindArrowLabel';
 
 @Entry
 @Component
-export default struct MindMapPage{
+export default struct MindMapPage {
   @Link model: MindElixirCore;
   @State rootNode: NodeObj | null = null;
   @State arrows: Arrow[] = [];
@@ -52,6 +52,7 @@ export default struct MindMapPage{
     positionX: 0,
     positionY: 0
   };
+  @State initialZoomScale: number = 1;
 
   aboutToAppear() {
     this.initializeMind();
@@ -138,22 +139,36 @@ export default struct MindMapPage{
       .position({ x: this.canvasPosition.offsetX, y: this.canvasPosition.offsetY })
       .scale({ x: this.zoomScale, y: this.zoomScale })
       .gesture(
-        PanGesture(this.panOption)
-          .onActionUpdate((event: GestureEvent) => {
-            if (event) {
-              const currentPosition = this.positionCtrl.getPosition();
-              const newOffsetX = currentPosition.positionX + event.offsetX;
-              const newOffsetY = currentPosition.positionY + event.offsetY;
-              this.positionCtrl.updatePosition(newOffsetX, newOffsetY);
-            }
-          })
-          .onActionEnd(() => {
-            this.positionCtrl.saveCurrentPosition();
-          })
+        GestureGroup(GestureMode.Parallel,
+          PanGesture(this.panOption)
+            .onActionStart(() => {
+              this.positionCtrl.saveCurrentPosition();
+            })
+            .onActionUpdate((event: GestureEvent) => {
+              if (event) {
+                const currentPosition = this.positionCtrl.getPosition();
+                const newOffsetX = currentPosition.positionX + event.offsetX;
+                const newOffsetY = currentPosition.positionY + event.offsetY;
+                this.positionCtrl.updatePosition(newOffsetX, newOffsetY);
+              }
+            })
+            .onActionEnd(() => {
+              this.positionCtrl.saveCurrentPosition();
+            }),
+          PinchGesture({ fingers: 2 })
+            .onActionStart(() => {
+              this.initialZoomScale = this.zoomScale;
+            })
+            .onActionUpdate((event: GestureEvent) => {
+              if (event && event.scale) {
+                let newScale = this.initialZoomScale * event.scale;
+                newScale = Math.max(0.1, Math.min(5, newScale));
+                this.zoomCtrl.setScale(newScale);
+              }
+            }))
       );
     }
     .onClick(() => {
-      // 点击空白处取消选中和编辑状态
       this.selectedNodeId = '';
       this.isDoubleClickAndEditing = false;
       this.arrowLabelEdit = false;

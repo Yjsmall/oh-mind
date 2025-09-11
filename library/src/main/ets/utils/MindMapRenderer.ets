@@ -14,14 +14,13 @@
  */
 
 import { MindElixirCore } from '../controller/MindElixirCore';
-import { CanvasSize, NodeObj } from '../model/NodeObj';
+import { CanvasSize, NodeObj, NodeOption, NodeStyle, LayoutDirection, Coordinate } from '../model/NodeObj';
 import { MindLineRender } from '../controller/MindLineRender';
-import { GlobalContext } from '../utils/GlobalContext';
-import { fileIo as fs } from '@kit.CoreFileKit';
-import { util } from '@kit.ArkTS';
-import common from '@ohos.app.ability.common';
 import { NodeHelper } from '../controller/NodeHelper';
 import { UtilsManager } from '../utils/UtilsManager';
+import { GlobalContext } from '../utils/GlobalContext';
+
+const FOLD_BTN_WIDTH: number = 20;
 
 export class MindMapRenderer {
   private mind: MindElixirCore;
@@ -29,7 +28,8 @@ export class MindMapRenderer {
   private context: OffscreenCanvasRenderingContext2D;
   private nodes: NodeObj[] = [];
   private nodeHelper: NodeHelper;
-
+  private options: NodeOption | null = null;
+  private nodeStyles: NodeStyle = {};
 
   /**
    * 构造函数
@@ -37,14 +37,42 @@ export class MindMapRenderer {
    */
   constructor(model: MindElixirCore) {
     this.mind = model;
-   this.nodeHelper = UtilsManager.getNodeHelper(this.mind.getInstanceId())!;
-    const canvasSize: CanvasSize =  this.nodeHelper.getCanvasSize();
+    this.options = this.mind.getMindOptions();
+    this.nodeHelper = UtilsManager.getNodeHelper(this.mind.getInstanceId())!;
+    const canvasSize: CanvasSize = this.nodeHelper.getCanvasSize();
     this.offscreenCanvas = new OffscreenCanvas(Number(canvasSize.width), Number(canvasSize.height));
     const context = this.offscreenCanvas.getContext('2d');
     if (!context) {
       throw new Error('Failed to get 2d context from OffscreenCanvas');
     }
     this.context = context;
+    this.getStyles();
+  }
+
+  /**
+   * 获取节点样式
+   */
+  private getStyles(): void {
+    const modelStyles = this.mind.getMindOptions();
+    this.nodeStyles.fontSize = modelStyles.nodeStyle?.fontSize || 16;
+    this.nodeStyles.fontFamily = modelStyles.nodeStyle?.fontFamily || 'HarmonyOS Sans';
+    this.nodeStyles.color = modelStyles.nodeStyle?.color || '#000';
+    this.nodeStyles.background = modelStyles.nodeStyle?.background || Color.Transparent;
+    this.nodeStyles.fontWeight = modelStyles.nodeStyle?.fontWeight || 'normal';
+    this.nodeStyles.border = modelStyles.nodeStyle?.border || { width: 0, radius: 20 };
+  }
+
+  /**
+   * 计算选中状态的边框样式
+   */
+  private getBorderStyle(node: NodeObj): BorderOptions {
+    const isSelected = this.mind.getSelectedNodeId() === node.id;
+    const borderWidth = this.nodeStyles.border?.width !== undefined ? Number(this.nodeStyles.border.width) : 0;
+    return {
+      width: isSelected ? 3 : (node.level! <= 1 ? 2 : borderWidth),
+      color: isSelected ? '#1890FF' : this.nodeStyles?.border?.color,
+      radius: this.nodeStyles.border?.radius !== undefined ? Number(this.nodeStyles.border.radius) : 20
+    };
   }
 
   /**
@@ -53,7 +81,7 @@ export class MindMapRenderer {
    * @param height 可选画布高度
    */
   public init(width?: number, height?: number): void {
-    this.nodes =  this.nodeHelper.getFlatNodes();
+    this.nodes = this.nodeHelper.getFlatNodes();
 
     // 如果指定了新的宽高，重新创建画布
     if (width && height) {
@@ -73,7 +101,12 @@ export class MindMapRenderer {
    * 清空画布
    */
   private clearCanvas(): void {
-    this.context.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+    const ctx = this.context;
+    // 首先清空画布
+    ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+    // 设置白色背景
+    ctx.fillStyle = '#ffffff'; // 白色
+    ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
   }
 
   /**
@@ -111,27 +144,16 @@ export class MindMapRenderer {
     // 保存当前状态
     ctx.save();
 
-    // 为 level < 2 的节点绘制边框
-    if (node.level !== undefined && node.level < 2) {
-      this.drawNodeBorder(node, x, y, width, height);
-    }
-    const uiContext: UIContext = GlobalContext.getInstance().getUiContext()!;
+    // 绘制节点背景和边框
+    this.drawNodeBackground(node, x, y, width, height);
 
     // 绘制文本
-    ctx.fillStyle = node.style?.color || '#000';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `${uiContext.vp2px(Number(node.style?.fontSize) || 20)}px HarmonyOS Sans`;
-    ctx.fillText(node.topic, x + width / 2, y + height / 2);
+    this.drawNodeText(node, x, y, width, height);
 
-    // 绘制标签
-    if (node.tags && node.tags.length > 0) {
-      this.drawTags(node, x, y, width, height);
-    }
 
-    // 绘制折叠节点
+    // 绘制折叠指示器
     if (!node.expanded && node.children!.length > 0 && node.level! >= 1) {
-      this.drawFoldNode(node, x, y, width, height);
+      this.drawFoldIndicator(node, x, y, width, height);
     }
 
     // 恢复状态
@@ -139,59 +161,146 @@ export class MindMapRenderer {
   }
 
   /**
-   * 绘制折叠节点
+   * 绘制节点背景和边框
    */
-  private drawFoldNode(node: NodeObj, x: number, y: number, width: number, height: number): void {
-    // 绘制连接线
+  private drawNodeBackground(node: NodeObj, x: number, y: number, width: number, height: number): void {
     const ctx = this.context;
+    const borderStyle = this.getBorderStyle(node);
+    const borderRadius = borderStyle.radius || 20;
+
+    // 绘制背景
+    ctx.fillStyle = (node.style?.background || this.nodeStyles.background) as string || '';
+    this.drawRoundedRect(ctx, x, y, width, height, borderRadius as number);
+    ctx.fill();
+
+    // 绘制边框
+    if (borderStyle.width && borderStyle.width > 0) {
+      ctx.strokeStyle = (borderStyle.color as string) || '';
+      ctx.lineWidth = borderStyle.width as number;
+      this.drawRoundedRect(ctx, x, y, width, height, borderRadius as number);
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * 绘制节点文本
+   */
+  private drawNodeText(node: NodeObj, x: number, y: number, width: number, height: number): void {
+    const ctx = this.context;
+    const uiContext: UIContext | null = GlobalContext.getInstance().getUiContext()!;
+    const textColor = node.style?.color || this.nodeStyles.color || '#000';
+    const fontSize = uiContext.vp2px(node.style?.fontSize || this.nodeStyles.fontSize || 16);
+    const fontFamily = node.style?.fontFamily || this.nodeStyles.fontFamily || 'HarmonyOS Sans';
+    const fontWeight = node.style?.fontWeight || this.nodeStyles.fontWeight || 'normal';
+
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+
+    // 文本溢出处理
+    const maxTextWidth = width - 16;
+    let displayText = node.topic;
+
+    if (ctx.measureText(node.topic).width > maxTextWidth) {
+      let truncatedText = node.topic;
+      while (truncatedText.length > 0 && ctx.measureText(truncatedText + '...').width > maxTextWidth) {
+        truncatedText = truncatedText.slice(0, -1);
+      }
+      displayText = truncatedText + '...';
+    }
+
+    ctx.fillText(displayText, x + width / 2, y + height / 2);
+  }
+
+  /**
+   * 绘制折叠指示器
+   */
+  private drawFoldIndicator(node: NodeObj, x: number, y: number, width: number, height: number): void {
+    const ctx = this.context;
+    const layout = this.options?.layout ?? LayoutDirection.RIGHT;
+    const foldBtnPoint = this.getFoldBtnPoint(node, layout);
+
+    // 绘制连接线
     ctx.beginPath();
-    ctx.moveTo(x + width, y + height / 2);
-    ctx.lineTo(x + width + 10, y + height / 2);
+
+    if (layout === LayoutDirection.LEFT) {
+      ctx.moveTo(x, y + height / 2);
+      ctx.lineTo(foldBtnPoint.x + FOLD_BTN_WIDTH / 2, y + height / 2);
+    } else if (layout === LayoutDirection.RIGHT) {
+      ctx.moveTo(x + width, y + height / 2);
+      ctx.lineTo(foldBtnPoint.x - FOLD_BTN_WIDTH / 2, y + height / 2);
+    } else if (layout === LayoutDirection.TOP) {
+      ctx.moveTo(x + width / 2, y);
+      ctx.lineTo(x + width / 2, foldBtnPoint.y + FOLD_BTN_WIDTH / 2);
+    } else if (layout === LayoutDirection.BOTTOM) {
+      ctx.moveTo(x + width / 2, y + height);
+      ctx.lineTo(x + width / 2, foldBtnPoint.y - FOLD_BTN_WIDTH / 2);
+    }
+
     ctx.lineWidth = 3;
-    ctx.strokeStyle = Color.Orange;
+    ctx.strokeStyle = '#ffa500';
     ctx.stroke();
 
-    // 绘制节点数量
-    const centerX = x + width + 20;
-    const centerY = y + height / 2;
+    // 绘制圆形指示器
+    const centerX: number = foldBtnPoint.x;
+    const centerY: number = foldBtnPoint.y;
     const radius = 10;
 
-    // 开始绘制路径
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
     ctx.fill();
-    ctx.strokeStyle = 'Color.Orange';
+    ctx.strokeStyle = '#ffa500';
     ctx.lineWidth = 3;
     ctx.stroke();
 
     // 设置文字样式
-    ctx.font = '12px sans-serif';
+    ctx.font = '12px HarmonyOS Sans';
     ctx.fillStyle = '#000000';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     // 在圆心位置绘制文字
-    const nodeHelper: NodeHelper = UtilsManager.getNodeHelper(this.mind.getInstanceId())!;
-    const text = nodeHelper.getAllChildrenNumber(node) + '';
+    const text = this.nodeHelper.getAllChildrenNumber(node) + '';
     ctx.fillText(text, centerX, centerY);
   }
 
   /**
-   * 绘制节点边框（针对 level < 3 的节点）
+   * 获取折叠按钮位置
    */
-  private drawNodeBorder(node: NodeObj, x: number, y: number, width: number, height: number): void {
-    const ctx = this.context;
-    const borderRadius = 20;
-    const borderWidth = 2;
-
-    // 设置边框样式
-    ctx.strokeStyle = '#3366FF';
-    ctx.lineWidth = borderWidth;
-
-    // 绘制圆角矩形边框
-    this.drawRoundedRect(ctx, x, y, width, height, borderRadius);
-    ctx.stroke();
+  private getFoldBtnPoint(node: NodeObj, layout: LayoutDirection): Coordinate {
+    try {
+      if (layout === LayoutDirection.LEFT) {
+        return {
+          x: node.x! - FOLD_BTN_WIDTH / 2,
+          y: node.y! + (node.height!) / 2 - FOLD_BTN_WIDTH / 2
+        };
+      } else if (layout === LayoutDirection.RIGHT) {
+        return {
+          x: node.x! + node.width! - FOLD_BTN_WIDTH / 2,
+          y: node.y! + (node.height!) / 2 - FOLD_BTN_WIDTH / 2
+        };
+      } else if (layout === LayoutDirection.TOP) {
+        return {
+          x: node.x! + (node.width!) / 2 - FOLD_BTN_WIDTH / 2,
+          y: node.y! - FOLD_BTN_WIDTH / 2
+        };
+      } else if (layout === LayoutDirection.BOTTOM) {
+        return {
+          x: node.x! + (node.width!) / 2 - FOLD_BTN_WIDTH / 2,
+          y: node.y! + (node.height!) - FOLD_BTN_WIDTH / 2
+        };
+      } else {
+        return {
+          x: node.x! + node.width! - FOLD_BTN_WIDTH / 2,
+          y: node.y! + (node.height!) / 2 - FOLD_BTN_WIDTH / 2
+        };
+      }
+    } catch (e) {
+      console.error('node data error');
+      return { x: 0, y: 0 };
+    }
   }
 
   /**
@@ -213,84 +322,6 @@ export class MindMapRenderer {
   }
 
   /**
-   * 绘制标签
-   */
-  private drawTags(node: NodeObj, x: number, y: number, width: number, height: number): void {
-    const ctx = this.context;
-    const tags = node.tags || [];
-    const uiContext: UIContext = GlobalContext.getInstance().getUiContext()!;
-
-    // 只显示前3个标签
-    let displayTags: string[] = [];
-    if (tags.length > 3) {
-      let exceedNum = tags.length - 2;
-      let lastTag = `+${exceedNum}`;
-      displayTags = tags.slice(0, 2);
-      displayTags.push(lastTag);
-    } else {
-      displayTags = tags;
-    }
-
-    displayTags.forEach((tag, index) => {
-      // 保存当前上下文状态
-      ctx.save();
-
-      // 计算标签位置
-      const PADDING = 5;
-      const TAGS_HEIGHT = 25;
-
-      let tagX = x;
-      let tagY = y + height + PADDING;
-
-      if (index > 0) {
-        tagY = y + height + PADDING + (TAGS_HEIGHT + PADDING) * index;
-      }
-
-      const tagWidth = width;
-      const tagHeight = TAGS_HEIGHT;
-      const borderRadius = 10;
-
-      // 绘制边框背景
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#cccccc';
-      ctx.lineWidth = 2;
-
-      // 绘制圆角矩形
-      this.drawRoundedRect(ctx, tagX, tagY, tagWidth, tagHeight, borderRadius);
-      ctx.fill();
-      ctx.stroke();
-
-      // 设置文本样式
-      ctx.fillStyle = '#000000';
-      ctx.font = `${uiContext.vp2px(16)}px HarmonyOS Sans`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // 计算文本位置
-      const textX = tagX + tagWidth / 2;
-      const textY = tagY + tagHeight / 2;
-
-      // 文本溢出处理
-      const maxTextWidth = tagWidth - 16;
-      let displayText = tag;
-
-      if (ctx.measureText(tag).width > maxTextWidth) {
-        let truncatedText = tag;
-        while (truncatedText.length > 0 && ctx.measureText(truncatedText + '...').width > maxTextWidth) {
-          truncatedText = truncatedText.slice(0, -1);
-        }
-        displayText = truncatedText + '...';
-      }
-
-      // 绘制文本
-      ctx.fillText(displayText, textX, textY);
-
-      // 恢复上下文状态
-      ctx.restore();
-    });
-  }
-
-  /**
    * 导出为PNG
    */
   exportToPNG(): string {
@@ -302,33 +333,6 @@ export class MindMapRenderer {
    */
   transferToImageBitmap() {
     return this.context.transferToImageBitmap();
-  }
-
-  /**
-   * 保存图像到文件
-   */
-  async saveImage(fileName: string = 'mindmap.png'): Promise<string> {
-    try {
-      const context: common.UIAbilityContext = GlobalContext.getInstance().getContext()!;
-      const sandboxDir = context.filesDir;
-      const filePath = sandboxDir + '/' + fileName;
-
-      const dataURL = this.exportToPNG();
-      const base64Data = dataURL.split(',')[1];
-
-      const Base64Helper = new util.Base64Helper();
-      const uint8Array: Uint8Array = Base64Helper.decodeSync(base64Data);
-      const arrayBuffer: ArrayBuffer = uint8Array.buffer.slice(0, uint8Array.byteLength);
-
-      const file = fs.openSync(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
-      await fs.write(file.fd, arrayBuffer);
-      fs.closeSync(file.fd);
-      return filePath;
-
-    } catch (error) {
-      console.error('Failed to save image:', error);
-      throw new Error(`Failed to save image: ${error.message}`);
-    }
   }
 
   /**
@@ -361,8 +365,6 @@ export class MindMapRenderer {
    * 销毁渲染器
    */
   destroy(): void {
-    // 清理资源
     this.nodes = [];
-    // 这里可以根据需要添加其他清理逻辑
   }
 }
