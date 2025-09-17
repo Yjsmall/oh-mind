@@ -1,15 +1,34 @@
 import { MindElixirCore } from '../controller/MindElixirCore';
 import { PopupEventsUtils } from '../utils/PopupUtils';
-import { Coordinate, DragOrientation, LayoutDirection, NodeObj, NodeOption, NodeStyle } from '../model/NodeObj';
+import {
+  Coordinate,
+  DragOrientation,
+  LayoutDirection,
+  NodeObj,
+  NodeOption,
+  NodeStyle,
+  RichTextSpan
+} from '../model/NodeObj';
 import { MindMenuItem } from './MindMenu';
 import { NodeHelper } from '../controller/NodeHelper';
 import { UtilsManager } from '../utils/UtilsManager';
+import { RichTextParser } from '../utils/RichTextParser';
+import { isColorWhite } from '../utils/Tools';
 
-const FOLD_BTN_WIDTH: number = 20;
 const DRAG_HIGHLIGHT_COLOR: ResourceColor = '#4dc4ff';
 
+
+@Extend(Span)
+function spanStyle(span: RichTextSpan, nodeStyles: NodeStyle) {
+  .fontColor(span.style?.color || nodeStyles.color)
+  .fontSize(span.style?.fontSize || nodeStyles.fontSize)
+  .fontFamily(span.style?.fontFamily || nodeStyles.fontFamily)
+  .fontWeight(span.style?.fontWeight || nodeStyles.fontWeight)
+  .backgroundColor(span.style?.background || Color.Transparent);
+}
+
 @Component
-export struct MindMapNodeComponent{
+export struct MindMapNodeComponent {
   @Link model: MindElixirCore;
   @Prop @Watch('changeFoldBtnPoint') node: NodeObj; // 绑定节点数据
   @Link selectedNodeId: string; // 当前选中的节点ID
@@ -23,6 +42,7 @@ export struct MindMapNodeComponent{
   @Link isStartDrop: boolean;
   @Link dragNodeId: string;
   private options: NodeOption | null = null;
+  private textSpans: RichTextSpan[] = [];
 
   // 获取节点样式
   getStyles(): void {
@@ -36,34 +56,38 @@ export struct MindMapNodeComponent{
     this.nodeStyles.width = this.node.style?.width || modelStyles.nodeStyle?.width;
   }
 
+  getFoldBtnWidth(): number {
+    return Math.min(25, (this.node.height!) / 1.5);
+  }
+
   getFoldBtnPoint(): Coordinate {
     try {
+      const foldBtnWidth: number = this.getFoldBtnWidth();
       const layout = this.model.getMindOptions().layout!;
-
       if (layout === LayoutDirection.LEFT) {
         return {
-          x: this.node.x! - FOLD_BTN_WIDTH / 2,
-          y: this.node.y! + (this.node.height!) / 2 - FOLD_BTN_WIDTH / 2
+          x: this.node.x! - foldBtnWidth / 2,
+          y: this.node.y! + (this.node.height!) / 2 - foldBtnWidth / 2
         };
       } else if (layout === LayoutDirection.RIGHT) {
         return {
-          x: this.node.x! + this.node.width! - FOLD_BTN_WIDTH / 2,
-          y: this.node.y! + (this.node.height!) / 2 - FOLD_BTN_WIDTH / 2
+          x: this.node.x! + this.node.width! - foldBtnWidth / 2,
+          y: this.node.y! + (this.node.height!) / 2 - foldBtnWidth / 2
         };
       } else if (layout === LayoutDirection.TOP) {
         return {
-          x: this.node.x! + (this.node.width!) / 2 - FOLD_BTN_WIDTH / 2,
-          y: this.node.y! - FOLD_BTN_WIDTH / 2
+          x: this.node.x! + (this.node.width!) / 2 - foldBtnWidth / 2,
+          y: this.node.y! - foldBtnWidth / 2
         };
       } else if (layout === LayoutDirection.BOTTOM) {
         return {
-          x: this.node.x! + (this.node.width!) / 2 - FOLD_BTN_WIDTH / 2,
-          y: this.node.y! + (this.node.height!) - FOLD_BTN_WIDTH / 2
+          x: this.node.x! + (this.node.width!) / 2 - foldBtnWidth / 2,
+          y: this.node.y! + (this.node.height!) - foldBtnWidth / 2
         };
       } else {
         return {
-          x: this.node.x! + this.node.width! - FOLD_BTN_WIDTH / 2,
-          y: this.node.y! + (this.node.height!) / 2 - FOLD_BTN_WIDTH / 2
+          x: this.node.x! + this.node.width! - foldBtnWidth / 2,
+          y: this.node.y! + (this.node.height!) / 2 - foldBtnWidth / 2
         };
       }
     } catch (e) {
@@ -80,6 +104,7 @@ export struct MindMapNodeComponent{
     this.getStyles();
     this.foldBtnPoint = this.getFoldBtnPoint();
     this.options = this.model.getMindOptions();
+    this.textSpans = RichTextParser.parse(this.node.topic, this.node.richText);
   }
 
   @Builder
@@ -117,16 +142,16 @@ export struct MindMapNodeComponent{
 
   // 构建文本输入框
   @Builder
-  private TextInputBuilder() {
-    TextInput({ text: this.node.topic, controller: this.controller })
+  private TextAreaBuilder() {
+    TextArea({ text: this.node.topic, controller: this.controller })
       .position({ x: this.node.x, y: this.node.y })
       .fontSize(this.nodeStyles.fontSize)
       .fontColor(this.nodeStyles.color)
-      .width('auto')
-      .height(this.node.height)
+      .width(this.node.width)
+      .height('auto')
       .constraintSize({ maxWidth: this.node.style?.maxWidth ?? this.options?.nodeStyle?.maxWidth })
-      .padding(0)
-      .borderRadius(0)
+      .padding(this.node.style?.padding ?? this.options?.nodeStyle?.padding)
+      .borderRadius(this.getBorderStyle().radius)
       .backgroundColor(this.nodeStyles.background)
       .border({
         width: this.selectedNodeId === this.node.id ? 4 : 0,
@@ -177,25 +202,61 @@ export struct MindMapNodeComponent{
   // 构建折叠指示器
   @Builder
   private FoldIndicatorBuilder() {
-    if (this.node.children?.length && !this.node.expanded) {
-      Text(this.nodeHelper.getAllChildrenNumber(this.node) + '')
+    if (this.node.children?.length && this.options?.collapsible &&
+      (!this.node.expanded || this.selectedNodeId === this.node.id)) {
+      Text(!this.node.expanded ? this.nodeHelper.getAllChildrenNumber(this.node) + '' : '-')
         .position({ x: this.foldBtnPoint.x, y: this.foldBtnPoint.y })
-        .fontSize(12)
-        .width(FOLD_BTN_WIDTH)
-        .height(FOLD_BTN_WIDTH)
+        .fontSize(14)
+        .width(this.getFoldBtnWidth())
+        .height(this.getFoldBtnWidth())
+        .lineHeight(this.getFoldBtnWidth() - 2)
         .textAlign(TextAlign.Center)
-        .border({ width: 3, color: Color.Orange })
-        .borderRadius(10)
-        .opacity(0.9)
-        .backgroundColor('#fff');
+        .border({ width: 1, color: this.nodeStyles.color })
+        .borderRadius('50%')
+        .fontColor(isColorWhite(this.nodeStyles.color) ? '#000' : this.nodeStyles.color)
+        .backgroundColor('#fff')
+        .onClick(() => {
+          if (this.node.expanded) {
+            this.model.foldNode(this.node.id);
+          } else {
+            this.model.expandedNode(this.node.id);
+          }
+        });
     }
+  }
+
+  // 构建富文本渲染器
+  @Builder
+  private RichTextBuilder() {
+    Text() {
+      ForEach(this.textSpans, (span: RichTextSpan) => {
+        if (span.onClick) {
+          Span(span.text)
+            .spanStyle(span, this.nodeStyles)
+            .onClick(() => {
+              if (span.onClick) {
+                span.onClick();
+              }
+            });
+        } else {
+          Span(span.text)
+            .spanStyle(span, this.nodeStyles);
+        }
+      });
+    }
+    .fontColor(this.nodeStyles.color)
+    .fontSize(this.nodeStyles.fontSize)
+    .fontFamily(this.nodeStyles.fontFamily)
+    .fontWeight(this.nodeStyles.fontWeight)
+    .textAlign(TextAlign.Start);
   }
 
   build() {
     Stack() {
       Column() {
         if (this.isDoubleClickAndEditing && this.node.id === this.selectedNodeId && this.options?.editable) {
-          this.TextInputBuilder();
+          this.TextAreaBuilder
+          ();
         } else {
           // 拖拽区域
           if (!this.node.isCantDrag) {
@@ -210,13 +271,7 @@ export struct MindMapNodeComponent{
 
           // 节点标签
           Row() {
-            Text(this.node.topic)
-              .fontColor(!this.node.isCantDrag ? this.nodeStyles.color : '#ccc')
-              .fontSize(this.nodeStyles.fontSize)
-              .fontFamily(this.nodeStyles.fontFamily)
-              .fontWeight(this.nodeStyles.fontWeight)
-              .textAlign(TextAlign.Start);
-
+            this.RichTextBuilder();
             if (this.node.tags && this.node.tags.length > 0) {
               Image($r('app.media.more'))
                 .width(18)
@@ -273,20 +328,13 @@ export struct MindMapNodeComponent{
                 if (this.model.hasLinkedNode()) {
                   this.model.renderLink(this.node.id);
                   this.model.startLink('', false);
-                } else {
-                  if (this.node.children?.length) {
-                    if (this.node.expanded) {
-                      this.model.foldNode(this.node.id);
-                    } else {
-                      this.model.expandedNode(this.node.id);
-                    }
-                  }
                 }
                 this.isDoubleClickAndEditing = false;
                 this.selectedNodeId = this.node.id;
                 this.model.selectNode(this.node.id);
               })
             ));
+
           this.FoldIndicatorBuilder();
         }
       };

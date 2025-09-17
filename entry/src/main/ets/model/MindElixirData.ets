@@ -15,6 +15,7 @@
 
 import { MindElixirData } from '@ohos/mind-elixir';
 
+
 const mindElixirData: MindElixirData = {
   nodeData: {
     id: "root",
@@ -300,7 +301,7 @@ const mindElixirData: MindElixirData = {
               background: '#fbe9e7',
               color: '#d84315'
             }
-          }
+          },
         ]
       }
     ],

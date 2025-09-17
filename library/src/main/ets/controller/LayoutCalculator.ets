@@ -30,10 +30,6 @@ export class MindMapLayout {
   private static layoutDirection = LayoutDirection.RIGHT;
   private static siblingAlignment: boolean = true;
   private static maxWidth: number = 200;
-  private static DEFAULT_CANVAS_SIZE: CanvasSize = {
-    width: 3000,
-    height: 6000
-  };
 
   /**
    * 计算节点布局并返回画布大小
@@ -59,6 +55,7 @@ export class MindMapLayout {
     if (MindMapLayout.siblingAlignment) {
       MindMapLayout.alignSiblingWidths(root);
     }
+    MindMapLayout.calculateSubtreeSizes(root);
 
     // 2. 检查是否有保存的根节点位置
     const nodeHelper: NodeHelper = UtilsManager.getNodeHelper(model.getInstanceId())!;
@@ -89,69 +86,25 @@ export class MindMapLayout {
   }
 
   /**
-   * 测量节点及其子树尺寸
+   * 测量节点基本尺寸
    */
-  private static measureNodes(node: NodeObj): NodeSize {
+  private static measureNodes(node: NodeObj): void {
     const nodeSize = TextMeasureUtils.getInstance()
       .measureText(node.topic, node.style?.fontSize ?? 20, node.style?.maxWidth ?? MindMapLayout.maxWidth);
-
     const padding = node.style?.padding ?? MindMapLayout.textPadding;
     node.width = nodeSize.width + 2 * padding;
     if (node.tags?.length) {
       node.width = nodeSize.width + 2 * padding + MindMapLayout.TAGS_WIDTH;
     }
     node.height = nodeSize.height + 2 * padding;
-
-    // 初始化子树尺寸
-    if (MindMapLayout.isHorizontalLayout()) {
-      node.subtreeWidth = 0;
-      node.subtreeHeight = node.height;
-    } else {
-      node.subtreeWidth = node.width;
-      node.subtreeHeight = 0;
-    }
-
+    // 递归测量子节点
     if (node.children?.length && node.expanded !== false) {
-      if (MindMapLayout.isHorizontalLayout()) {
-        MindMapLayout.measureLayoutNodes(node, 'horizontal');
-      } else {
-        MindMapLayout.measureLayoutNodes(node, 'vertical');
+      for (const child of node.children) {
+        MindMapLayout.measureNodes(child);
       }
     }
-
-    return { width: node.width, height: node.height };
   }
 
-  /**
-   * 通用测量方法（水平和垂直布局）
-   */
-  private static measureLayoutNodes(node: NodeObj, direction: 'horizontal' | 'vertical'): void {
-    let totalSize = 0;
-    let maxChildSize = 0;
-
-    for (const child of node.children!) {
-      MindMapLayout.measureNodes(child);
-
-      if (direction === 'horizontal') {
-        totalSize += child.subtreeHeight!;
-        maxChildSize = Math.max(maxChildSize, child.subtreeWidth!);
-      } else {
-        totalSize += child.subtreeWidth!;
-        maxChildSize = Math.max(maxChildSize, child.subtreeHeight!);
-      }
-    }
-
-    const gap = direction === 'horizontal' ? MindMapLayout.verticalGap : MindMapLayout.horizontalGap;
-    const childrenSize = totalSize + gap * (node.children!.length - 1);
-
-    if (direction === 'horizontal') {
-      node.subtreeHeight = Math.max(node.height!, childrenSize);
-      node.subtreeWidth = node.width! + maxChildSize + MindMapLayout.horizontalGap;
-    } else {
-      node.subtreeWidth = Math.max(node.width!, childrenSize);
-      node.subtreeHeight = node.height! + maxChildSize + MindMapLayout.verticalGap;
-    }
-  }
 
   /**
    * 对齐同级节点的宽度
@@ -159,7 +112,9 @@ export class MindMapLayout {
   private static alignSiblingWidths(root: NodeObj): void {
     const nodesByLevel = new Map<number, NodeObj[]>();
     const queue: NodeObj[] = [root];
+    root.level = 0;
 
+    // 按层级收集节点
     while (queue.length > 0) {
       const node = queue.shift()!;
       const level = node.level || 0;
@@ -179,29 +134,28 @@ export class MindMapLayout {
 
     // 对每个层级设置相同宽度（跳过根节点）
     nodesByLevel.forEach((nodes, level) => {
-      if (level === 0) {
-        return;
-      }
+      if (level === 0) return; // 跳过根节点
 
       let maxWidth = 0;
+      // 找到该层级的最大宽度
       nodes.forEach(node => {
         if (node.width && node.width > maxWidth) {
           maxWidth = node.width;
         }
       });
 
+      // 设置所有同级节点为相同宽度
       nodes.forEach(node => {
         node.width = maxWidth;
       });
     });
-
-    MindMapLayout.recalculateSubtreeSizes(root);
   }
 
   /**
-   * 重新计算子树尺寸
+   * 计算子树尺寸（使用对齐后的宽度）
    */
-  private static recalculateSubtreeSizes(node: NodeObj): void {
+  private static calculateSubtreeSizes(node: NodeObj): void {
+    // 初始化子树尺寸
     if (MindMapLayout.isHorizontalLayout()) {
       node.subtreeWidth = 0;
       node.subtreeHeight = node.height!;
@@ -211,9 +165,47 @@ export class MindMapLayout {
     }
 
     if (node.children?.length && node.expanded !== false) {
-      MindMapLayout.measureLayoutNodes(node, MindMapLayout.isHorizontalLayout() ? 'horizontal' : 'vertical');
+      // 先递归计算所有子节点的子树尺寸
+      for (const child of node.children) {
+        MindMapLayout.calculateSubtreeSizes(child);
+      }
+
+      if (MindMapLayout.isHorizontalLayout()) {
+        // 水平布局：计算最大子宽度和总高度
+        let maxChildWidth = 0;
+        let totalChildrenHeight = 0;
+
+        for (const child of node.children) {
+          maxChildWidth = Math.max(maxChildWidth, child.subtreeWidth!);
+          totalChildrenHeight += child.subtreeHeight!;
+        }
+
+        // 添加垂直间距
+        totalChildrenHeight += MindMapLayout.verticalGap * (node.children.length - 1);
+
+        // 更新父节点尺寸
+        node.subtreeHeight = Math.max(node.height!, totalChildrenHeight);
+        node.subtreeWidth = node.width! + maxChildWidth + MindMapLayout.horizontalGap;
+      } else {
+        // 垂直布局：计算最大子高度和总宽度
+        let maxChildHeight = 0;
+        let totalChildrenWidth = 0;
+
+        for (const child of node.children) {
+          maxChildHeight = Math.max(maxChildHeight, child.subtreeHeight!);
+          totalChildrenWidth += child.subtreeWidth!;
+        }
+
+        // 添加水平间距
+        totalChildrenWidth += MindMapLayout.horizontalGap * (node.children.length - 1);
+
+        // 更新父节点尺寸
+        node.subtreeWidth = Math.max(node.width!, totalChildrenWidth);
+        node.subtreeHeight = node.height! + maxChildHeight + MindMapLayout.verticalGap;
+      }
     }
   }
+
 
   /**
    * 核心布局方法

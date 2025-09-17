@@ -16,7 +16,7 @@
 import { MindElixirCore } from '../controller/MindElixirCore';
 import { CanvasSize, FlatNodeObj, MindElixirData, NodeObj, ParentNode, Coordinate, Arrow } from '../model/NodeObj';
 import { MindMapLayout } from '../controller/LayoutCalculator';
-import { generateId } from '../utils/Tools';
+import { generateId, deepClone } from '../utils/Tools';
 
 
 const DEFAULT_CANVAS_SIZE: CanvasSize = {
@@ -242,7 +242,7 @@ export class NodeHelper {
       this.copyNode = targetNode;
       this.mind.remove(id);
     } else {
-      this.copyNode = JSON.parse(JSON.stringify(targetNode));
+      this.copyNode = deepClone(targetNode);
     }
     return true;
   }

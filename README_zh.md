@@ -18,7 +18,7 @@
 ohpm install @ohos/mind-elixir
 ```
 
-OpenHarmony ohpm环境配置等更多内容，请参考[如何安装OpenHarmony ohpm](https://gitcode.com/openharmony-tpc/docs/blob/master/OpenHarmony_har_usage.md)。
+OpenHarmony ohpm环境配置等更多内容，请参考[如何安装OpenHarmony ohpm](https://ohpm.openharmony.cn/#/cn/help/downloadandinstall)。
 
 
 
@@ -42,6 +42,7 @@ struct Index {
     allowUndo: true,                    // 记录操作历史开关
     contextMenu: true,                  // 上下文菜单开关
     layout: LayoutDirection.RIGHT,      // 思维导图朝向
+    collapsible: true,                  // 节点可展开开关
     siblingAlignment: true,             // 兄弟节点对齐开关
     nodeShape: 'line',                  // 思维导图样式 line直线、curve曲线
     mindInViewport: true,               // 思维导图显示在可视区域内
@@ -197,21 +198,22 @@ enum DragOrientation {
 ```
 
 ### NodeOption配置选项
-| 参数名           | 类型            | 默认值                           | 说明                     |
-|--------------------| ---------------- |--------------------| ---------------- |
-| locale           | string          | 'zh'                             | 语言设置                 |
-| draggable        | boolean         | false                            | 节点拖拽开关             |
-| editable         | boolean         | false                            | 节点编辑开关             |
-| toolBar          | boolean         | false                            | 工具栏开关               |
-| allowUndo        | boolean         | false                            | 撤销重做开关             |
-| contextMenu      | boolean         | false                            | 上下文菜单开关           |
-| layout           | LayoutDirection | LayoutDirection.RIGHT            | 思维导图布局方向         |
-| siblingAlignment | boolean         | true                             | 兄弟节点对齐开关         |
-| nodeShape        | string          | 'line'                           | 节点形状（line/curve）   |
-| mindInViewport   | boolean         | true                             | 思维导图显示在可视区域内 |
-| nodeSpacing      | Object          | { horizontal: 50, vertical: 30 } | 节点间距配置             |
-| nodeStyle        | Object          | 详见下文                         | 节点样式配置 |
-| lineStyle | Object | { width: 2, color: '#e64553' } | 连接线样式配置 |
+| 参数名               | 类型                | 默认值                              | 说明               |
+|-------------------|-------------------|----------------------------------|------------------|
+| locale            | string            | 'zh'                             | 语言设置             |
+| draggable         | boolean           | false                            | 节点拖拽开关           |
+| editable          | boolean           | false                            | 节点编辑开关           |
+| toolBar           | boolean           | false                            | 工具栏开关            |
+| allowUndo         | boolean           | false                            | 撤销重做开关           |
+| contextMenu       | boolean           | false                            | 上下文菜单开关          |
+| layout            | LayoutDirection   | LayoutDirection.RIGHT            | 思维导图布局方向         |
+| siblingAlignment  | boolean           | false                            | 兄弟节点对齐开关         |
+| nodeShape         | string            | 'line'                           | 节点形状（line/curve） |
+| mindInViewport    | boolean           | false                            | 思维导图显示在可视区域内     |
+| collapsible       | boolean           | false                            | 思维导图节点是否可展开      |
+| nodeSpacing       | Object            | { horizontal: 50, vertical: 30 } | 节点间距配置           |
+| nodeStyle         | Object            | 详见下文                             | 节点样式配置           |
+| lineStyle         | Object            | { width: 2, color: '#e64553' }   | 连接线样式配置          |
 
 ### NodeStyle节点样式配置
 | 参数名     | 类型   | 默认值           | 说明     |
@@ -243,6 +245,7 @@ interface NodeObj {
     height?: number;             // 高度
     subtreeWidth?: number;       // 子树宽度
     subtreeHeight?: number;      // 子树高度
+    richText?: RichTextSpan[];    // 富文本
 }
 ```
 

@@ -137,36 +137,7 @@ export default struct MindMapPage {
       .width(this.canvasSize?.width)
       .height(this.canvasSize?.height)
       .position({ x: this.canvasPosition.offsetX, y: this.canvasPosition.offsetY })
-      .scale({ x: this.zoomScale, y: this.zoomScale })
-      .gesture(
-        GestureGroup(GestureMode.Parallel,
-          PanGesture(this.panOption)
-            .onActionStart(() => {
-              this.positionCtrl.saveCurrentPosition();
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              if (event) {
-                const currentPosition = this.positionCtrl.getPosition();
-                const newOffsetX = currentPosition.positionX + event.offsetX;
-                const newOffsetY = currentPosition.positionY + event.offsetY;
-                this.positionCtrl.updatePosition(newOffsetX, newOffsetY);
-              }
-            })
-            .onActionEnd(() => {
-              this.positionCtrl.saveCurrentPosition();
-            }),
-          PinchGesture({ fingers: 2 })
-            .onActionStart(() => {
-              this.initialZoomScale = this.zoomScale;
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              if (event && event.scale) {
-                let newScale = this.initialZoomScale * event.scale;
-                newScale = Math.max(0.1, Math.min(5, newScale));
-                this.zoomCtrl.setScale(newScale);
-              }
-            }))
-      );
+      .scale({ x: this.zoomScale, y: this.zoomScale });
     }
     .onClick(() => {
       this.selectedNodeId = '';
@@ -181,6 +152,36 @@ export default struct MindMapPage {
       if (this.options?.mindInViewport) {
         this.positionCtrl.adjustZoomToFitContainer();
       }
-    });
+    })
+    .gesture(
+      GestureGroup(GestureMode.Parallel,
+        PanGesture(this.panOption)
+          .onActionStart(() => {
+            this.positionCtrl.saveCurrentPosition();
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            if (event) {
+              const currentPosition = this.positionCtrl.getPosition();
+              const speedFactor = Math.max(0.3, Math.min(1.5, 1 / this.zoomScale));
+              const newOffsetX = currentPosition.positionX + event.offsetX * speedFactor;
+              const newOffsetY = currentPosition.positionY + event.offsetY * speedFactor;
+              this.positionCtrl.updatePosition(newOffsetX, newOffsetY);
+            }
+          })
+          .onActionEnd(() => {
+            this.positionCtrl.saveCurrentPosition();
+          }),
+        PinchGesture({ fingers: 2 })
+          .onActionStart(() => {
+            this.initialZoomScale = this.zoomScale;
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            if (event && event.scale) {
+              let newScale = this.initialZoomScale * event.scale;
+              newScale = Math.max(0.1, Math.min(5, newScale));
+              this.zoomCtrl.setScale(newScale);
+            }
+          }))
+    );
   }
 }
