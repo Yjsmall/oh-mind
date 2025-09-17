@@ -18,7 +18,7 @@ following features:
 ohpm install @ohos/mind-elixir
 ```
 
-For details about the OpenHarmony ohpm environment configuration,see [OpenHarmony HAR](https://gitcode.com/openharmony-tpc/docs/blob/master/OpenHarmony_har_usage.md).
+For details about the OpenHarmony ohpm environment configuration,see [OpenHarmony HAR](https://ohpm.openharmony.cn/#/cn/help/downloadandinstall).
 
 ## How to Use
 
@@ -40,6 +40,7 @@ struct Index {
     allowUndo: true,                    // Toggle for operation history recording
     contextMenu: true,                  // Toggle for context menu
     layout: LayoutDirection.RIGHT,      // Mind map orientation
+    collapsible: true,                  // Toggle for expand node
     siblingAlignment: true,             // Toggle for sibling node alignment
     nodeShape: 'line',                  // Mind map style: 'line' for straight, 'curve' for curved
     mindInViewport: true,               // Display mind map within the viewport
@@ -197,7 +198,7 @@ enum DragOrientation {
 ###  NodeOption Configuration Options
 
 | Parameter Name   | Type            | Default Value                    | Description                   |
-|--------------------| ---------------- |--------------------| ---------------- |
+|--------------------| ---------------- |----------------------------------|-------------------------------|
 | locale           | string          | 'zh'                             | Language setting              |
 | draggable        | boolean         | false                            | Node drag-and-drop toggle     |
 | editable         | boolean         | false                            | Node editing toggle           |
@@ -205,9 +206,10 @@ enum DragOrientation {
 | allowUndo        | boolean         | false                            | Undo/redo toggle              |
 | contextMenu      | boolean         | false                            | Context menu toggle           |
 | layout           | LayoutDirection | LayoutDirection.RIGHT            | Mind map layout direction     |
-| siblingAlignment | boolean         | true                             | Sibling node alignment toggle |
+| siblingAlignment | boolean         | false                            | Sibling node alignment toggle |
 | nodeShape        | string          | 'line'                           | Node shape (line/curve)       |
-| mindInViewport   | boolean         | true                             | Display mind map in viewport  |
+| mindInViewport   | boolean         | false                            | Display mind map in viewport  |
+| collapsible      | boolean         | false                            | Node expand toggle            |
 | nodeSpacing      | Object          | { horizontal: 50, vertical: 30 } | Node spacing configuration    |
 | nodeStyle        | Object          | See below                        | Node style configuration      |
 | lineStyle        | Object          | { width: 2, color: '#e64553' }   | Connector style configuration |
@@ -244,6 +246,7 @@ interface NodeObj {
     height?: number;             // Height
     subtreeWidth?: number;       // Subtree width
     subtreeHeight?: number;      // Subtree height
+    richText?: RichTextSpan[];    // RichText
 }
 ```
 

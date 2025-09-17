@@ -14,7 +14,7 @@
  */
 
 import { MindElixir, MindElixirCore, MindElixirData, NodeOption, LayoutDirection } from '@ohos/mind-elixir';
-import mindElixirData from '../model/MindElixirData3';
+import mindElixirData from '../model/MindElixirData';
 
 @Entry
 @Component
@@ -26,12 +26,14 @@ struct Index {
     toolBar: true,
     allowUndo: true,
     contextMenu: true,
+    collapsible: true,
+    siblingAlignment: true,
+    mindInViewport: true,
     layout: LayoutDirection.RIGHT,
     nodeShape: 'line',
-    mindInViewport: true,
     nodeSpacing: {
-      horizontal: 50,
-      vertical: 50
+      horizontal: 30,
+      vertical: 30
     },
     nodeStyle: {
       fontSize: 20,
@@ -54,6 +56,33 @@ struct Index {
   };
   @State model: MindElixirCore = new MindElixirCore(this.mindOption);
   private initializedData: MindElixirData = mindElixirData;
+
+  aboutToAppear(): void {
+    this.initializedData.nodeData?.children?.push({
+      topic: "点击我可以跳转到中药知识图谱页面，请试试吧！",
+      id: "go_medicine_page",
+      richText: [
+        {
+          text: '中药知识图谱',
+          style: { color: '#ff0000', fontWeight: 'bold' },
+          onClick: () => {
+            this.getUIContext().getRouter().pushUrl({
+              url: 'pages/Medicine',
+            });
+          }
+        },
+        {
+          text: '试试',
+          style: { color: '#ff00ff'},
+          onClick: () => {
+            this.getUIContext().getRouter().pushUrl({
+              url: 'pages/Medicine',
+            });
+          }
+        },
+      ],
+    });
+  }
 
   build() {
     Flex() {

@@ -40,6 +40,7 @@ export interface NodeOption {
   toolBar?: boolean;
   allowUndo?: boolean;
   contextMenu?: boolean;
+  collapsible?: boolean;
   layout?: LayoutDirection;
   nodeShape?: 'curve' | 'line';
   nodeSpacing?: NodeSpacing;
@@ -57,7 +58,7 @@ export interface  NodeSpacing {
 export interface NodeStyle {
   fontSize?: number;
   fontFamily?: string | Resource;
-  color?: string | number;
+  color?: string;
   background?: ResourceColor;
   fontWeight?: string | number | FontWeight;
   width?: number;
@@ -69,6 +70,12 @@ export interface NodeStyle {
 export interface MindElixirData {
   nodeData: NodeObj;
   arrows?: Arrow[];
+}
+
+export interface RichTextSpan {
+  text: string;
+  style?: NodeStyle;
+  onClick?: () => void; // 点击事件回调
 }
 
 export interface NodeObj {
@@ -89,7 +96,8 @@ export interface NodeObj {
   subtreeHeight?: number;
   isCantDrag?: boolean;
   arrow?: Arrow;
-  lineStyle?: lineStyle
+  lineStyle?: lineStyle;
+  richText?: RichTextSpan[];
 }
 
 export interface lineStyle {

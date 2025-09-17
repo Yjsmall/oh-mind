@@ -29,7 +29,7 @@ import { CanvasPositionUtils } from '../utils/CanvasPositionUtils';
 import { ZoomUtils } from '../utils/ZoomUtils';
 import { ShortcutManager } from './ShortcutManager';
 import { UtilsManager } from '../utils/UtilsManager';
-import { generateId } from '../utils/Tools';
+import { generateId, deepClone } from '../utils/Tools';
 import { i18n } from '@kit.LocalizationKit';
 
 const DEFAULT_OPTIONS: NodeOption = {
@@ -39,10 +39,11 @@ const DEFAULT_OPTIONS: NodeOption = {
   toolBar: false,
   allowUndo: false,
   contextMenu: false,
+  collapsible: false,
+  siblingAlignment: false,
+  mindInViewport: false,
   layout: LayoutDirection.RIGHT,
-  siblingAlignment: true,
   nodeShape: 'line',
-  mindInViewport: true,
   nodeSpacing: {
     horizontal: 50,
     vertical: 30
@@ -120,6 +121,9 @@ export class MindElixirCore {
     }
     if (userOptions.contextMenu !== undefined) {
       mergedOptions.contextMenu = userOptions.contextMenu;
+    }
+    if (userOptions.collapsible !== undefined) {
+      mergedOptions.collapsible = userOptions.collapsible;
     }
     if (userOptions.layout !== undefined) {
       mergedOptions.layout = userOptions.layout;
@@ -211,7 +215,7 @@ export class MindElixirCore {
       return;
     }
     this.mindElixirData = mindElixirData;
-    this.originMindElixirData = JSON.parse(JSON.stringify(mindElixirData));
+    this.originMindElixirData = deepClone(mindElixirData);
     this.nodeHelper.calculateNodePosition(mindElixirData);
     this.initCanvas();
     this.notifyUpdate();
@@ -361,7 +365,6 @@ export class MindElixirCore {
     });
     if (arrowIndex !== undefined && arrowIndex !== -1) {
       this.originMindElixirData?.arrows?.splice(arrowIndex, 1);
-      this.refresh();
     }
     if (!result) {
       return false;
@@ -535,6 +538,9 @@ export class MindElixirCore {
     if (updatedNode.subtreeHeight !== undefined) {
       target.subtreeHeight = updatedNode.subtreeHeight;
     }
+    if (updatedNode.richText !== undefined) {
+      target.richText = updatedNode.richText;
+    }
     // 重新初始化
     this.refresh();
     return true;
@@ -597,6 +603,7 @@ export class MindElixirCore {
    * @param direction 布局方向
    */
   public setMindDirection(direction: LayoutDirection) {
+    this.nodeHelper.clearRootPosition();
     this.options.layout = direction;
     this.refresh();
     this.resetPosition();
@@ -650,7 +657,7 @@ export class MindElixirCore {
     }
 
     // 记录贝当前状态
-    const historyItem: MindElixirData = JSON.parse(JSON.stringify(this.originMindElixirData));
+    const historyItem: MindElixirData =  deepClone(this.originMindElixirData) ;
     this.history.push(historyItem);
 
     // 限制历史记录数量
@@ -666,7 +673,7 @@ export class MindElixirCore {
   public undo(): boolean {
     // 1. 当前状态存入重做栈
     if (this.originMindElixirData) {
-      this.future.push(JSON.parse(JSON.stringify(this.originMindElixirData)));
+      this.future.push(deepClone(this.originMindElixirData));
     }
 
     // 最后一条数据为最新数据先剔除
@@ -790,7 +797,6 @@ export class MindElixirCore {
    * 重置画布位置到原点
    */
   resetPosition() {
-    this.nodeHelper.clearRootPosition();
     this.positionCtrl.resetToOrigin();
   }
 
