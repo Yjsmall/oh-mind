@@ -149,9 +149,7 @@ export default struct MindMapPage {
     .height('100%')
     .onAreaChange((old, newValue) => {
       this.positionCtrl.setContainerSize(Number(newValue.width), Number(newValue.height));
-      if (this.options?.mindInViewport) {
-        this.positionCtrl.adjustZoomToFitContainer();
-      }
+      this.positionCtrl.resetToOrigin();
     })
     .gesture(
       GestureGroup(GestureMode.Parallel,

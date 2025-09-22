@@ -40,6 +40,15 @@ export struct MindMenuItem {
       id: 'add_tags',
     },
     {
+      value: $r('app.string.delete_tags'),
+      level: 0,
+      action: () => {
+        this.currentNode.tags = [];
+        this.model.updateNode(this.currentNode);
+      },
+      id: 'delete_tags',
+    },
+    {
       value: $r('app.string.add_parent'),
       level: 1,
       action: () => {
@@ -129,6 +138,9 @@ export struct MindMenuItem {
       if (item.id === 'fold_or_expanded') {
         return !!this.currentNode?.children?.length;
       }
+      if (item.id === 'delete_tags') {
+        return !!this.currentNode?.tags?.length;
+      }
       return true;
     });
   }
@@ -141,11 +153,15 @@ export struct MindMenuItem {
             item.action();
           })
           .fontSize(20)
+          .fontColor('#000')
           .stateStyles({
             normal: this.MenuItemStyles,
             focused: this.MenuItemFocused
           });
-        Divider().height(1).visibility(index === this.menuOptions.length - 1 ? Visibility.None : Visibility.Visible);
+        Divider()
+          .backgroundColor("#ccc")
+          .height(1)
+          .visibility(index === this.menuOptions.length - 1 ? Visibility.None : Visibility.Visible);
       });
     };
   }

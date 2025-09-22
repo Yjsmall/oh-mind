@@ -365,6 +365,7 @@ export class MindElixirCore {
     });
     if (arrowIndex !== undefined && arrowIndex !== -1) {
       this.originMindElixirData?.arrows?.splice(arrowIndex, 1);
+      this.refresh();
     }
     if (!result) {
       return false;

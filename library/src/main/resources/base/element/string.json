@@ -21,6 +21,10 @@
       "value": "Add Tags"
     },
     {
+      "name": "delete_tags",
+      "value": "Delete Tags"
+    },
+    {
       "name": "add_parent",
       "value": "Add parent"
     },
