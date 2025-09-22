@@ -21,6 +21,10 @@
       "value": "添加标签"
     },
     {
+      "name": "delete_tags",
+      "value": "删除标签"
+    },
+    {
       "name": "add_parent",
       "value": "添加父节点"
     },

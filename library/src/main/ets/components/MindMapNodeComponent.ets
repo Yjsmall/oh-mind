@@ -285,7 +285,7 @@ export struct MindMapNodeComponent {
             }
           }
           .padding(this.node.tags && this.node.tags.length > 0 ? { left: 3, right: 3 } : { left: 3 })
-          .justifyContent(Number(this.node.tags?.length) > 0 ? FlexAlign.SpaceBetween : FlexAlign.Center)
+          .justifyContent(FlexAlign.Center)
           .position({ x: this.node.x, y: this.node.y })
           .width(this.node.width)
           .backgroundColor(this.nodeStyles.background)
@@ -299,6 +299,8 @@ export struct MindMapNodeComponent {
             ResponseType.LongPress, {
               enableArrow: false,
               placement: Placement.Top,
+              backgroundColor: Color.White,
+              backgroundBlurStyle: BlurStyle.NONE,
               onAppear: () => {
                 this.selectedNodeId = this.node.id;
                 this.model.selectNode(this.selectedNodeId);

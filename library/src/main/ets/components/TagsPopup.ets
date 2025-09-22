@@ -80,33 +80,6 @@ export default struct TagsPopup {
         }.layoutWeight(1);
 
         Divider().height(1).width('90%').backgroundColor('#000');
-
-        Column() {
-          Flex({ wrap: FlexWrap.Wrap }) {
-            if (this.allTags?.length) {
-              ForEach(this.allTags, (item: string) => {
-                Text(item)
-                  .fontSize(14)
-                  .width('auto')
-                  .backgroundColor('#e8e8e8')
-                  .borderRadius('50%')
-                  .padding(5)
-                  .margin({ top: 10, left: 10 })
-                  .onClick(() => {
-                    // 判断原tags中是否已经存在
-                    if (!this.tagStr.split(',').includes(item)) {
-                      if (this.tagStr.length === 0) {
-                        this.tagStr += item;
-                      } else {
-                        this.tagStr += (',' + item);
-                      }
-                    }
-                  });
-              });
-            }
-          }.width('100%').height('100%');
-        }.height(80).width('90%').clip(true);
-
       }
       .constraintSize({ maxWidth: 500, maxHeight: 300 })
       .width('70%')
