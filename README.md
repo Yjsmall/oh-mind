@@ -313,9 +313,9 @@ DevEco Studio 5.1.0 Release(5.1.0.849), SDK: API17(5.0.5).
 
 ## How to Contribute
 
-If you find any problem when using the project, submit an Issue or a PR.
+If you encounter any issues during use, please submit an [Issue](https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir/issues) to the component. Of course, [PR](https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir/pulls) contributions are also very welcome for collaborative development.
 
 ## License
 
-This project is licensed under MIT License.
+This project is based on [Apache License 2.0](https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir/blob/master/LICENSE). Feel free to enjoy and participate in open source.
 
