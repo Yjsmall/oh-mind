@@ -31,8 +31,8 @@ export class MindMapEventEmitter {
   }
 
   // 移除节点更新监听器
-  static offNodeUpdated(callback?: (eventData: emitter.EventData) => void): void {
-    emitter.off(MindMapEvent.NODE_UPDATED, callback);
+  static offNodeUpdated(): void {
+    emitter.off(MindMapEvent.NODE_UPDATED);
   }
 
   // 触发节点更新事件
@@ -53,9 +53,9 @@ export class MindMapEventEmitter {
     emitter.on(innerEvent, callback);
   }
 
-  // 移除节点更新监听器
-  static offCanvasUpdated(callback?: (eventData: emitter.EventData) => void): void {
-    emitter.off(MindMapEvent.CANVAS_UPDATED, callback);
+  // Canvas更新监听器
+  static offCanvasUpdated(): void {
+    emitter.off(MindMapEvent.CANVAS_UPDATED);
   }
 
   // 触发节点更新事件
