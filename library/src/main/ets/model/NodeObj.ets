@@ -75,13 +75,16 @@ export interface MindElixirData {
 export interface RichTextSpan {
   text: string;
   style?: NodeStyle;
-  onClick?: () => void; // 点击事件回调
+  isLink?: boolean;
+  originText?: string;
+  onClick?: (text: string) => void;
 }
 
 export interface NodeObj {
   topic: string;
   id: Uid;
   style?: NodeStyle;
+  linkStyle?: NodeStyle;
   children?: NodeObj[];
   tags?: string[];
   expanded?: boolean;
@@ -97,7 +100,7 @@ export interface NodeObj {
   isCantDrag?: boolean;
   arrow?: Arrow;
   lineStyle?: lineStyle;
-  richText?: RichTextSpan[];
+  onLinkClick?: (text: string) => void;
 }
 
 export interface lineStyle {
