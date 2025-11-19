@@ -503,9 +503,6 @@ export class MindElixirCore {
     if (updatedNode.style !== undefined) {
       target.style = updatedNode.style;
     }
-    if (updatedNode.linkStyle !== undefined) {
-      target.linkStyle = updatedNode.linkStyle;
-    }
     if (updatedNode.children !== undefined) {
       target.children = updatedNode.children;
     }
@@ -542,8 +539,8 @@ export class MindElixirCore {
     if (updatedNode.subtreeHeight !== undefined) {
       target.subtreeHeight = updatedNode.subtreeHeight;
     }
-    if (updatedNode.onLinkClick !== undefined) {
-      target.onLinkClick = updatedNode.onLinkClick;
+    if (updatedNode.richText !== undefined) {
+      target.richText = updatedNode.richText;
     }
     // 重新初始化
     this.refresh();
