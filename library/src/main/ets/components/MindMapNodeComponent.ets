@@ -37,7 +37,6 @@ export struct MindMapNodeComponent {
   @State dragAreaColors: ResourceColor[] = [Color.Transparent, Color.Transparent, Color.Transparent];
   controller: TextInputController = new TextInputController();
   @State nodeStyles: NodeStyle = {};
-  @State linkStyles: NodeStyle = {};
   @State foldBtnPoint: Coordinate = { x: 0, y: 0 };
   private nodeHelper: NodeHelper = UtilsManager.getNodeHelper(this.model.getInstanceId())!;
   @Link isStartDrop: boolean;
@@ -46,15 +45,15 @@ export struct MindMapNodeComponent {
   private textSpans: RichTextSpan[] = [];
 
   // 获取节点样式
-  getStyles(nodeStyles: NodeStyle): void {
+  getStyles(): void {
     const modelStyles = this.model.getMindOptions();
-    nodeStyles.fontSize = this.node.style?.fontSize || modelStyles.nodeStyle?.fontSize || 16;
-    nodeStyles.fontFamily = this.node.style?.fontFamily || modelStyles.nodeStyle?.fontFamily || 'HarmonyOS Sans';
-    nodeStyles.color = this.node.style?.color || modelStyles.nodeStyle?.color || '#000';
-    nodeStyles.background = this.node.style?.background || modelStyles.nodeStyle?.background || Color.Transparent;
-    nodeStyles.fontWeight = this.node.style?.fontWeight || modelStyles.nodeStyle?.fontWeight || 'normal';
-    nodeStyles.border = this.node.style?.border || modelStyles.nodeStyle?.border || { width: 0, radius: 20 };
-    nodeStyles.width = this.node.style?.width || modelStyles.nodeStyle?.width;
+    this.nodeStyles.fontSize = this.node.style?.fontSize || modelStyles.nodeStyle?.fontSize || 16;
+    this.nodeStyles.fontFamily = this.node.style?.fontFamily || modelStyles.nodeStyle?.fontFamily || 'HarmonyOS Sans';
+    this.nodeStyles.color = this.node.style?.color || modelStyles.nodeStyle?.color || '#000';
+    this.nodeStyles.background = this.node.style?.background || modelStyles.nodeStyle?.background || Color.Transparent;
+    this.nodeStyles.fontWeight = this.node.style?.fontWeight || modelStyles.nodeStyle?.fontWeight || 'normal';
+    this.nodeStyles.border = this.node.style?.border || modelStyles.nodeStyle?.border || { width: 0, radius: 20 };
+    this.nodeStyles.width = this.node.style?.width || modelStyles.nodeStyle?.width;
   }
 
   getFoldBtnWidth(): number {
@@ -102,11 +101,10 @@ export struct MindMapNodeComponent {
   }
 
   aboutToAppear(): void {
-    this.getStyles(this.nodeStyles);
-    this.getStyles(this.linkStyles);
+    this.getStyles();
     this.foldBtnPoint = this.getFoldBtnPoint();
     this.options = this.model.getMindOptions();
-    this.textSpans = RichTextParser.parse(this.node);
+    this.textSpans = RichTextParser.parse(this.node.topic, this.node.richText);
   }
 
   @Builder
@@ -232,12 +230,12 @@ export struct MindMapNodeComponent {
   private RichTextBuilder() {
     Text() {
       ForEach(this.textSpans, (span: RichTextSpan) => {
-        if (span.isLink) {
+        if (span.onClick) {
           Span(span.text)
-            .spanStyle(span, this.linkStyles)
+            .spanStyle(span, this.nodeStyles)
             .onClick(() => {
-              if (span.isLink && this.node.onLinkClick) {
-                this.node.onLinkClick(span.originText || '');
+              if (span.onClick) {
+                span.onClick();
               }
             });
         } else {

@@ -167,15 +167,21 @@ struct Project {
           ]
         },
         {
-          topic: "<a>返回首页</a>",
+          topic: "返回首页",
           id: "back",
           expanded: true,
           style: {
             color: '#000'
           },
-          onLinkClick: (text:string) => {
-            this.getUIContext().getRouter().back();
-          }
+          richText: [
+            {
+              text: '返回首页',
+              style: { color: '#ff00ff'},
+              onClick: () => {
+                this.getUIContext().getRouter().back();
+              }
+            },
+          ],
         }
       ]
     }

@@ -59,21 +59,28 @@ struct Index {
 
   aboutToAppear(): void {
     this.initializedData.nodeData?.children?.push({
-      topic: "<a href='pages/Medicine'>点击</a>我可以跳转到<a href='pages/Medicine'>中药页面</a>，请试试吧！",
+      topic: "点击我可以跳转到中药知识图谱页面，请试试吧！",
       id: "go_medicine_page",
-      linkStyle: {
-        color: '#f00',
-      },
-      onLinkClick: (text:string) => {
-        const regex = /href\s*=\s*([^\s>]+)/i;
-        const match = text.match(regex);
-        if (match && match[1]) {
-          const url = match[1].replace(/'/g, '');
-          this.getUIContext().getRouter().pushUrl({
-            url,
-          });
-        }
-      }
+      richText: [
+        {
+          text: '中药知识图谱',
+          style: { color: '#ff0000', fontWeight: 'bold' },
+          onClick: () => {
+            this.getUIContext().getRouter().pushUrl({
+              url: 'pages/Medicine',
+            });
+          }
+        },
+        {
+          text: '试试',
+          style: { color: '#ff00ff'},
+          onClick: () => {
+            this.getUIContext().getRouter().pushUrl({
+              url: 'pages/Medicine',
+            });
+          }
+        },
+      ],
     });
   }
 
