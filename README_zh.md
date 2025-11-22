@@ -28,7 +28,7 @@ MindElixir引用及使用
 
 ```typescript
 import { MindElixir, MindElixirData, MindElixirCore, NodeOption, LayoutDirection } from '@ohos/mind-elixir';
-import mindElixirData from '../model/MindElixirData2';
+import mindElixirData from '../model/MindElixirData';
 
 @Entry
 @Component

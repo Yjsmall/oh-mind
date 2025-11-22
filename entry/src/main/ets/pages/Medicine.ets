@@ -167,7 +167,7 @@ struct Project {
           ]
         },
         {
-          topic: "返回首页",
+          topic: "跳转首页",
           id: "back",
           expanded: true,
           style: {
@@ -175,10 +175,12 @@ struct Project {
           },
           richText: [
             {
-              text: '返回首页',
+              text: '跳转首页',
               style: { color: '#ff00ff'},
               onClick: () => {
-                this.getUIContext().getRouter().back();
+                this.getUIContext().getRouter().pushUrl({
+                  url: 'pages/Index',
+                });
               }
             },
           ],
