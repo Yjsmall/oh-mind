@@ -16,6 +16,7 @@
 import { UIContext } from '@kit.ArkUI';
 import { GlobalContext } from '../utils/GlobalContext';
 import { TextSize } from '../model/NodeObj';
+import { RichTextParser } from './RichTextParser';
 
 export class TextMeasureUtils {
   private static instance: TextMeasureUtils;
@@ -35,9 +36,10 @@ export class TextMeasureUtils {
   // 测量文本尺寸
   public measureText(textContent: string, fontSize: Length = 20, maxWidth: number = 200): TextSize {
     const uiContext: UIContext | null = GlobalContext.getInstance().getUiContext()!;
+    const text = RichTextParser.cleanHtmlTags(textContent)
     // 先测量文本的实际宽度（不限制宽度）
     const unconstrainedSize = uiContext.getMeasureUtils().measureTextSize({
-      textContent,
+      textContent: text,
       fontSize
     });
     const actualWidth = uiContext!.px2vp(Number(unconstrainedSize.width));
@@ -46,7 +48,7 @@ export class TextMeasureUtils {
     let finalHeight = actualHeight;
     if (actualWidth > maxWidth) {
       const constrainedSize = uiContext.getMeasureUtils().measureTextSize({
-        textContent,
+        textContent: text,
         fontSize,
         constraintWidth: maxWidth
       });
