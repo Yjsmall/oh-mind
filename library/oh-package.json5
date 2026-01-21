@@ -12,7 +12,7 @@
   "main": "Index.ets",
   "type": "module",
   "repository": "https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir",
-  "version": "1.0.1-rc.0",
+  "version": "1.0.1",
   "tags": [
     "mind",
     "OpenHarmony",
