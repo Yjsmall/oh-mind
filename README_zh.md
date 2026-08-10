@@ -31,7 +31,7 @@ import { MindElixir, MindElixirData, MindElixirCore, NodeOption, LayoutDirection
 import mindElixirData from '../model/MindElixirData';
 
 @Entry
-@Component
+@ComponentV2
 struct Index {
   // 基础配置
   private mindOption: NodeOption = {
@@ -70,7 +70,8 @@ struct Index {
     }
   };
 
-  @State model: MindElixirCore = new MindElixirCore(this.mindOption);
+  // MindElixirCore 是命令式服务，不是响应式 UI 状态。
+  private model: MindElixirCore = new MindElixirCore(this.mindOption);
   private initializedData: MindElixirData = mindElixirData;
 
   // 页面展示
@@ -281,7 +282,10 @@ interface Arrow {
 ## 约束与限制
 
 在下述版本验证通过：
-DevEco Studio 5.1.0 Release(5.1.0.849), SDK: API17(5.0.5)。
+使用 OpenHarmony SDK API 23 或更高版本的 DevEco Studio。
+
+项目的编译和兼容 SDK 基线为 API 23，ArkUI 组件采用状态管理 V2
+（`@ComponentV2`、`@Param`、`@Event`、`@Local` 和 `@Monitor`）。
 
 ## 目录结构
 
@@ -316,4 +320,3 @@ DevEco Studio 5.1.0 Release(5.1.0.849), SDK: API17(5.0.5)。
 ## 开源协议
 
 本项目基于 [Apache License 2.0](https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir/blob/master/LICENSE) ，请自由地享受和参与开源。
-

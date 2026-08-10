@@ -16,17 +16,22 @@
 import { MindElixirCore } from '../controller/MindElixirCore';
 import { Arrow } from '../model/NodeObj';
 
-@Component
+@ComponentV2
 export struct MindArrowLabel {
-  @Link model: MindElixirCore;
-  @Prop arrowData: Arrow;
-  @Link selectedNodeId: string; // 当前选中的节点ID
-  @Link arrowLabelEdit: boolean;
+  @Require @Param model: MindElixirCore;
+  @Require @Param arrowData: Arrow;
+  @Param selectedNodeId: string = '';
+  @Param arrowLabelEdit: boolean = false;
+  @Param renderVersion: number = 0;
+  @Event onNodeSelectionChange: (nodeId: string) => void = () => {
+  };
+  @Event onArrowLabelEditingChange: (isEditing: boolean) => void = () => {
+  };
   controller: TextInputController = new TextInputController();
-  @State fontSize: number = 18;
-  @State labelWidth: number = 0;
-  @State labelHeight: number = this.fontSize;
-  @State newLabel: string = this.arrowData.label;
+  @Local fontSize: number = 18;
+  @Local labelWidth: number = 0;
+  @Local labelHeight: number = this.fontSize;
+  @Local newLabel: string = '';
 
   private estimateTextWidth(text: string, fontSize = 18) {
     const charWidth = 9.6;
@@ -34,6 +39,16 @@ export struct MindArrowLabel {
   }
 
   aboutToAppear(): void {
+    this.refreshArrowLabelState();
+  }
+
+  @Monitor('renderVersion')
+  onMapRenderVersionChanged(): void {
+    this.refreshArrowLabelState();
+  }
+
+  private refreshArrowLabelState(): void {
+    this.newLabel = this.arrowData.label;
     this.labelWidth = this.estimateTextWidth(this.arrowData.label);
   }
 
@@ -54,7 +69,7 @@ export struct MindArrowLabel {
           this.newLabel = value;
         })
         .onBlur(() => {
-          this.arrowLabelEdit = false;
+          this.onArrowLabelEditingChange(false);
           this.model.updateLinkLabel(this.arrowData.id, this.newLabel);
           this.labelWidth = this.estimateTextWidth(this.newLabel);
         });
@@ -74,12 +89,11 @@ export struct MindArrowLabel {
           GestureGroup(GestureMode.Exclusive,
             TapGesture({ count: 2 }).onAction(() => {
               console.log("双击事件");
-              this.arrowLabelEdit = true;
+              this.onArrowLabelEditingChange(true);
             }),
             TapGesture({ count: 1 }).onAction(() => {
               console.log("单击事件");
-              this.selectedNodeId = this.arrowData.id;
-              this.model.selectNode(this.selectedNodeId);
+              this.onNodeSelectionChange(this.arrowData.id);
             })
           ));
     }

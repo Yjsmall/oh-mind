@@ -27,34 +27,43 @@ function spanStyle(span: RichTextSpan, nodeStyles: NodeStyle) {
   .backgroundColor(span.style?.background || Color.Transparent);
 }
 
-@Component
+@ComponentV2
 export struct MindMapNodeComponent {
-  @Link model: MindElixirCore;
-  @Prop @Watch('changeFoldBtnPoint') node: NodeObj; // 绑定节点数据
-  @Link selectedNodeId: string; // 当前选中的节点ID
-  @Link isDoubleClickAndEditing: boolean; //是否修改（双击）
-  @State newTopic: string = this.node.topic;
-  @State dragAreaColors: ResourceColor[] = [Color.Transparent, Color.Transparent, Color.Transparent];
+  @Require @Param model: MindElixirCore;
+  @Require @Param node: NodeObj;
+  @Param selectedNodeId: string = '';
+  @Param isDoubleClickAndEditing: boolean = false;
+  @Param isStartDrop: boolean = false;
+  @Param dragNodeId: string = '';
+  @Param renderVersion: number = 0;
+  @Event onNodeSelectionChange: (nodeId: string) => void = () => {
+  };
+  @Event onNodeEditingChange: (isEditing: boolean) => void = () => {
+  };
+  @Event onDragStateChange: (isDragging: boolean, dragNodeId: string) => void = () => {
+  };
+  @Local newTopic: string = '';
+  @Local dragAreaColors: ResourceColor[] = [Color.Transparent, Color.Transparent, Color.Transparent];
   controller: TextInputController = new TextInputController();
-  @State nodeStyles: NodeStyle = {};
-  @State linkStyles: NodeStyle = {};
-  @State foldBtnPoint: Coordinate = { x: 0, y: 0 };
+  @Local nodeStyles: NodeStyle = {};
+  @Local linkStyles: NodeStyle = {};
+  @Local foldBtnPoint: Coordinate = { x: 0, y: 0 };
   private nodeHelper: NodeHelper = UtilsManager.getNodeHelper(this.model.getInstanceId())!;
-  @Link isStartDrop: boolean;
-  @Link dragNodeId: string;
   private options: NodeOption | null = null;
   private textSpans: RichTextSpan[] = [];
 
-  // 获取节点样式
-  getStyles(nodeStyles: NodeStyle): void {
+  // Use replacement values so style refreshes are visible to V2 state management.
+  private createNodeStyles(): NodeStyle {
     const modelStyles = this.model.getMindOptions();
-    nodeStyles.fontSize = this.node.style?.fontSize || modelStyles.nodeStyle?.fontSize || 16;
-    nodeStyles.fontFamily = this.node.style?.fontFamily || modelStyles.nodeStyle?.fontFamily || 'HarmonyOS Sans';
-    nodeStyles.color = this.node.style?.color || modelStyles.nodeStyle?.color || '#000';
-    nodeStyles.background = this.node.style?.background || modelStyles.nodeStyle?.background || Color.Transparent;
-    nodeStyles.fontWeight = this.node.style?.fontWeight || modelStyles.nodeStyle?.fontWeight || 'normal';
-    nodeStyles.border = this.node.style?.border || modelStyles.nodeStyle?.border || { width: 0, radius: 20 };
-    nodeStyles.width = this.node.style?.width || modelStyles.nodeStyle?.width;
+    return {
+      fontSize: this.node.style?.fontSize || modelStyles.nodeStyle?.fontSize || 16,
+      fontFamily: this.node.style?.fontFamily || modelStyles.nodeStyle?.fontFamily || 'HarmonyOS Sans',
+      color: this.node.style?.color || modelStyles.nodeStyle?.color || '#000',
+      background: this.node.style?.background || modelStyles.nodeStyle?.background || Color.Transparent,
+      fontWeight: this.node.style?.fontWeight || modelStyles.nodeStyle?.fontWeight || 'normal',
+      border: this.node.style?.border || modelStyles.nodeStyle?.border || { width: 0, radius: 20 },
+      width: this.node.style?.width || modelStyles.nodeStyle?.width
+    };
   }
 
   getFoldBtnWidth(): number {
@@ -97,15 +106,21 @@ export struct MindMapNodeComponent {
     }
   }
 
-  changeFoldBtnPoint() {
-    this.foldBtnPoint = this.getFoldBtnPoint();
+  aboutToAppear(): void {
+    this.options = this.model.getMindOptions();
+    this.refreshNodeRenderingState();
   }
 
-  aboutToAppear(): void {
-    this.getStyles(this.nodeStyles);
-    this.getStyles(this.linkStyles);
+  @Monitor('renderVersion')
+  onMapRenderVersionChanged(): void {
+    this.refreshNodeRenderingState();
+  }
+
+  private refreshNodeRenderingState(): void {
+    this.newTopic = this.node.topic;
+    this.nodeStyles = this.createNodeStyles();
+    this.linkStyles = this.createNodeStyles();
     this.foldBtnPoint = this.getFoldBtnPoint();
-    this.options = this.model.getMindOptions();
     this.textSpans = RichTextParser.parse(this.node);
   }
 
@@ -130,6 +145,14 @@ export struct MindMapNodeComponent {
   // 清除拖拽区域颜色
   private clearDragAreaColors(): void {
     this.dragAreaColors = [Color.Transparent, Color.Transparent, Color.Transparent];
+  }
+
+  private updateDragAreaColor(index: number, color: ResourceColor): void {
+    this.dragAreaColors = [
+      index === 0 ? color : this.dragAreaColors[0],
+      index === 1 ? color : this.dragAreaColors[1],
+      index === 2 ? color : this.dragAreaColors[2]
+    ];
   }
 
   // 处理拖拽区域事件
@@ -164,9 +187,8 @@ export struct MindMapNodeComponent {
       })
       .defaultFocus(this.node.id === this.selectedNodeId)
       .onBlur(() => {
-        this.isDoubleClickAndEditing = false;
-        this.selectedNodeId = '';
-        this.model.selectNode(this.selectedNodeId);
+        this.onNodeEditingChange(false);
+        this.onNodeSelectionChange('');
 
         if (this.newTopic !== this.node.topic) {
           this.node.topic = this.newTopic;
@@ -193,11 +215,11 @@ export struct MindMapNodeComponent {
       .onDrop(() => this.handleDragAreaEvent(index, orientation))
       .onDragEnter(() => {
         if (this.dragNodeId !== this.node.id) {
-          this.dragAreaColors[index] = DRAG_HIGHLIGHT_COLOR;
+          this.updateDragAreaColor(index, DRAG_HIGHLIGHT_COLOR);
         }
       })
       .onDragLeave(() => {
-        this.dragAreaColors[index] = Color.Transparent;
+        this.updateDragAreaColor(index, Color.Transparent);
       });
   }
 
@@ -282,8 +304,7 @@ export struct MindMapNodeComponent {
                 .fillColor('#000')
                 .margin({ left: 2, right: 2 })
                 .onClick(() => {
-                  this.selectedNodeId = this.node.id;
-                  this.model.selectNode(this.selectedNodeId);
+                  this.onNodeSelectionChange(this.node.id);
                   PopupEventsUtils.getInstance().open();
                 });
             }
@@ -306,28 +327,24 @@ export struct MindMapNodeComponent {
               backgroundColor: Color.White,
               backgroundBlurStyle: BlurStyle.NONE,
               onAppear: () => {
-                this.selectedNodeId = this.node.id;
-                this.model.selectNode(this.selectedNodeId);
+                this.onNodeSelectionChange(this.node.id);
               }
             })
           .draggable(this.options?.draggable)
           .onDragStart(() => {
-            this.isStartDrop = true;
-            this.dragNodeId = this.node.id;
+            this.onDragStateChange(true, this.node.id);
             this.model.setDragStatusForSubtree(this.node.id, false);
           })
 
           .onDragEnd(() => {
-            this.isStartDrop = false;
             this.model.setDragStatusForSubtree(this.node.id, true);
-            this.dragNodeId = '';
+            this.onDragStateChange(false, '');
           })
           .gesture(
             GestureGroup(GestureMode.Exclusive,
               TapGesture({ count: 2 }).onAction(() => {
-                this.selectedNodeId = this.node.id;
-                this.model.selectNode(this.node.id);
-                this.isDoubleClickAndEditing = true;
+                this.onNodeSelectionChange(this.node.id);
+                this.onNodeEditingChange(true);
                 this.controller.setTextSelection(0, this.node.topic.length, { menuPolicy: MenuPolicy.SHOW });
               }),
               TapGesture({ count: 1 }).onAction(() => {
@@ -335,9 +352,8 @@ export struct MindMapNodeComponent {
                   this.model.renderLink(this.node.id);
                   this.model.startLink('', false);
                 }
-                this.isDoubleClickAndEditing = false;
-                this.selectedNodeId = this.node.id;
-                this.model.selectNode(this.node.id);
+                this.onNodeEditingChange(false);
+                this.onNodeSelectionChange(this.node.id);
               })
             ));
 

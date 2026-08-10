@@ -17,7 +17,7 @@ import { MindElixir, MindElixirCore, MindElixirData, NodeOption, LayoutDirection
 import mindElixirData from '../model/MindElixirData';
 
 @Entry
-@Component
+@ComponentV2
 struct Index {
   private mindOption: NodeOption = {
     locale: 'zh',
@@ -54,7 +54,8 @@ struct Index {
       color: '#e64553'
     }
   };
-  @State model: MindElixirCore = new MindElixirCore(this.mindOption);
+  // The controller is an imperative command service, not UI-owned state.
+  private model: MindElixirCore = new MindElixirCore(this.mindOption);
   private initializedData: MindElixirData = JSON.parse(JSON.stringify(mindElixirData));
 
   aboutToAppear(): void {

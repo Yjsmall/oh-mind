@@ -29,7 +29,7 @@ import { MindElixir, MindElixirData, MindElixirCore, NodeOption, LayoutDirection
 import mindElixirData from '../model/MindElixirData';
 
 @Entry
-@Component
+@ComponentV2
 struct Index {
   // Basic configuration
   private mindOption: NodeOption = {
@@ -68,7 +68,8 @@ struct Index {
     }
   };
 
-  @State model: MindElixirCore = new MindElixirCore(this.mindOption);
+  // MindElixirCore is an imperative command service, not reactive UI state.
+  private model: MindElixirCore = new MindElixirCore(this.mindOption);
   private initializedData: MindElixirData = mindElixirData;
 
   // Page display
@@ -283,7 +284,10 @@ interface Arrow {
 ## Constraints and Limitations
 
 Verified on the following versions:
-DevEco Studio 5.1.0 Release(5.1.0.849), SDK: API17(5.0.5).
+DevEco Studio with OpenHarmony SDK API 23 or later.
+
+The project compiles and targets API 23. Its ArkUI components use state
+management V2 (`@ComponentV2`, `@Param`, `@Event`, `@Local`, and `@Monitor`).
 
 ## Directory Structure
 
@@ -318,4 +322,3 @@ If you encounter any issues during use, please submit an [Issue](https://gitee.c
 ## License
 
 This project is based on [Apache License 2.0](https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir/blob/master/LICENSE). Feel free to enjoy and participate in open source.
-

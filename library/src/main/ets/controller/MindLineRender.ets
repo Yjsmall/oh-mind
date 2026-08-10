@@ -59,6 +59,16 @@ export class MindLineRender {
     this.reRender();
   }
 
+  /** Refresh line geometry after the core recalculates its mutable node tree. */
+  public refresh(): void {
+    if (!this.nodeHelper || !this.mind) {
+      return;
+    }
+    this.nodes = this.nodeHelper.getFlatNodes();
+    this.options = this.mind.getMindOptions();
+    this.reRender();
+  }
+
   /**
    * 重新渲染所有连接线
    */

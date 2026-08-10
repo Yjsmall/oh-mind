@@ -13,18 +13,22 @@
  * limitations under the License.
  */
 
-import { NodeObj, CanvasSize } from '../model/NodeObj';
+import { CanvasSize } from '../model/NodeObj';
 import { MindLineRender } from '../controller/MindLineRender';
 import { MindElixirCore } from '../controller/MindElixirCore';
-import { MindMapEventEmitter } from '../controller/MindMapEvents';
 
-@Component
+@ComponentV2
 export default struct MindMapLines {
-  @Link model: MindElixirCore;
+  @Require @Param model: MindElixirCore;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private canvasContext: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
-  @Prop canvasSize: CanvasSize | null;
-  @Prop canvasRefreshFlag: boolean;
+  @Param canvasSize: CanvasSize | null = null;
+  @Param canvasRefreshFlag: boolean = false;
+
+  @Monitor('canvasRefreshFlag')
+  onCanvasRefreshRequested(): void {
+    MindLineRender.getInstance(this.model.getInstanceId())?.refresh();
+  }
 
   build() {
     Canvas(this.canvasContext)
@@ -33,7 +37,6 @@ export default struct MindMapLines {
       .position({ x: 0, y: 0 })
       .onReady(() => {
         MindLineRender.createInstance(this.model.getInstanceId()).init(this.canvasContext!, this.model);
-      })
-      .key(`canvas_${this.canvasRefreshFlag}`);
+      });
   }
 }

@@ -16,7 +16,7 @@
 import { MindElixir, MindElixirCore, MindElixirData, NodeOption, LayoutDirection } from '@ohos/mind-elixir';
 
 @Entry
-@Component
+@ComponentV2
 struct Project {
   private mindOption: NodeOption = {
     locale: 'zh',
@@ -51,7 +51,8 @@ struct Project {
       color: '#e64553'
     }
   };
-  @State model: MindElixirCore = new MindElixirCore(this.mindOption);
+  // The controller is an imperative command service, not UI-owned state.
+  private model: MindElixirCore = new MindElixirCore(this.mindOption);
   private initializedData: MindElixirData = {
     nodeData: {
       id: "root",

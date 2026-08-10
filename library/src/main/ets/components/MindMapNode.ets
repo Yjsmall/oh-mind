@@ -17,14 +17,21 @@ import { NodeObj } from '../model/NodeObj';
 import { MindMapNodeComponent } from './MindMapNodeComponent';
 import { MindElixirCore } from '../controller/MindElixirCore';
 
-@Component
+@ComponentV2
 export default struct MindMapNode {
-  @Link model: MindElixirCore;
-  @Prop node: NodeObj; // 绑定节点数据
-  @Link selectedNodeId: string; // 当前选中的节点ID
-  @Link isDoubleClickAndEditing: boolean; //是否修改（双击）
-  @Link isStartDrop: boolean;
-  @Link dragNodeId: string;
+  @Require @Param model: MindElixirCore;
+  @Require @Param node: NodeObj;
+  @Param selectedNodeId: string = '';
+  @Param isDoubleClickAndEditing: boolean = false;
+  @Param isStartDrop: boolean = false;
+  @Param dragNodeId: string = '';
+  @Param renderVersion: number = 0;
+  @Event onNodeSelectionChange: (nodeId: string) => void = () => {
+  };
+  @Event onNodeEditingChange: (isEditing: boolean) => void = () => {
+  };
+  @Event onDragStateChange: (isDragging: boolean, dragNodeId: string) => void = () => {
+  };
 
   build() {
     Stack() {
@@ -34,7 +41,12 @@ export default struct MindMapNode {
         selectedNodeId: this.selectedNodeId,
         isDoubleClickAndEditing: this.isDoubleClickAndEditing,
         isStartDrop: this.isStartDrop,
-        dragNodeId: this.dragNodeId
+        dragNodeId: this.dragNodeId,
+        renderVersion: this.renderVersion,
+        onNodeSelectionChange: (nodeId: string) => this.onNodeSelectionChange(nodeId),
+        onNodeEditingChange: (isEditing: boolean) => this.onNodeEditingChange(isEditing),
+        onDragStateChange: (isDragging: boolean, dragNodeId: string) =>
+          this.onDragStateChange(isDragging, dragNodeId)
       });
       if (this.node.children) {
         ForEach(this.node.children, (item: NodeObj) => {
@@ -45,7 +57,12 @@ export default struct MindMapNode {
               selectedNodeId: this.selectedNodeId,
               isDoubleClickAndEditing: this.isDoubleClickAndEditing,
               isStartDrop: this.isStartDrop,
-              dragNodeId: this.dragNodeId
+              dragNodeId: this.dragNodeId,
+              renderVersion: this.renderVersion,
+              onNodeSelectionChange: (nodeId: string) => this.onNodeSelectionChange(nodeId),
+              onNodeEditingChange: (isEditing: boolean) => this.onNodeEditingChange(isEditing),
+              onDragStateChange: (isDragging: boolean, dragNodeId: string) =>
+                this.onDragStateChange(isDragging, dragNodeId)
             });
           }
         });

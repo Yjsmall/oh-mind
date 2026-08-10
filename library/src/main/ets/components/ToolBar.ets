@@ -24,9 +24,9 @@ interface MenuItem {
   angle?: number
 }
 
-@Component
+@ComponentV2
 export default struct MenuBar {
-  @Link model: MindElixirCore;
+  @Require @Param model: MindElixirCore;
   private zoomCtrl: ZoomUtils = UtilsManager.getZoomUtils(this.model.getInstanceId())!;
   // 定义菜单项数据
   private menuItems: Array<MenuItem> = [

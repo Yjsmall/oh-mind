@@ -26,33 +26,34 @@ import { UtilsManager } from '../utils/UtilsManager';
 import { MindArrowLabel } from './MindArrowLabel';
 
 @Entry
-@Component
+@ComponentV2
 export default struct MindMapPage {
-  @Link model: MindElixirCore;
-  @State rootNode: NodeObj | null = null;
-  @State arrows: Arrow[] = [];
-  @State selectedNodeId: string = '';
-  @State flatNodes: NodeObj[] = [];
+  @Require @Param model: MindElixirCore;
+  @Local rootNode: NodeObj | null = null;
+  @Local arrows: Arrow[] = [];
+  @Local selectedNodeId: string = '';
   private panOption: PanGestureOptions = new PanGestureOptions({ direction: PanDirection.All });
   private positionCtrl: CanvasPositionUtils = UtilsManager.getPositionUtils(this.model.getInstanceId())!;
   private zoomCtrl: ZoomUtils = UtilsManager.getZoomUtils(this.model.getInstanceId())!;
   private nodeHelper: NodeHelper = UtilsManager.getNodeHelper(this.model.getInstanceId())!;
   private shortcutManager: ShortcutManager = UtilsManager.getShortcutManager(this.model.getInstanceId())!;
   private options: NodeOption | null = null;
-  @State isDoubleClickAndEditing: boolean = false;
-  @State canvasSize: CanvasSize | null = null;
-  @State canvasRefreshFlag: boolean = false;
-  @State zoomScale: number = 1;
-  @State arrowLabelEdit: boolean = false;
-  @State dragNodeId: string = '';
-  @State isStartDrop: boolean = false;
-  @State canvasPosition: CanvasPosition = {
+  @Local isDoubleClickAndEditing: boolean = false;
+  @Local canvasSize: CanvasSize | null = null;
+  @Local canvasRefreshFlag: boolean = false;
+  @Local zoomScale: number = 1;
+  @Local arrowLabelEdit: boolean = false;
+  @Local dragNodeId: string = '';
+  @Local isStartDrop: boolean = false;
+  @Local canvasPosition: CanvasPosition = {
     offsetX: 0,
     offsetY: 0,
     positionX: 0,
     positionY: 0
   };
-  @State initialZoomScale: number = 1;
+  @Local initialZoomScale: number = 1;
+  // The core mutates a plain node graph. This revision creates a V2 render boundary.
+  @Local renderVersion: number = 0;
 
   aboutToAppear() {
     this.initializeMind();
@@ -62,17 +63,16 @@ export default struct MindMapPage {
     this.model.destroy();
   }
 
-  private initializeMind() {
+  private initializeMind(): void {
     this.rootNode = this.nodeHelper.getTreeNodeData();
-    this.flatNodes = this.nodeHelper.getFlatNodes();
     this.arrows = this.nodeHelper.getArrowsData();
     this.options = this.model.getMindOptions();
     this.initCanvasSize();
 
     MindMapEventEmitter.onNodeUpdated(() => {
       this.rootNode = this.nodeHelper.getTreeNodeData();
-      this.flatNodes = this.nodeHelper.getFlatNodes();
       this.arrows = this.nodeHelper.getArrowsData();
+      this.renderVersion++;
     });
 
     MindMapEventEmitter.onCanvasUpdated(() => {
@@ -85,12 +85,40 @@ export default struct MindMapPage {
     });
 
     this.positionCtrl.setOnPositionChange((position: CanvasPosition) => {
-      this.canvasPosition = position;
+      // Position utilities reuse one mutable object; replace it for V2 notification.
+      this.canvasPosition = {
+        offsetX: position.offsetX,
+        offsetY: position.offsetY,
+        positionX: position.positionX,
+        positionY: position.positionY
+      };
     });
   }
 
-  initCanvasSize() {
-    this.canvasSize = this.nodeHelper.getCanvasSize();
+  private initCanvasSize(): void {
+    const canvasSize = this.nodeHelper.getCanvasSize();
+    this.canvasSize = {
+      width: canvasSize.width,
+      height: canvasSize.height
+    };
+  }
+
+  private selectNode(nodeId: string): void {
+    this.selectedNodeId = nodeId;
+    this.model.selectNode(nodeId);
+  }
+
+  private updateNodeEditingState(isEditing: boolean): void {
+    this.isDoubleClickAndEditing = isEditing;
+  }
+
+  private updateDragState(isDragging: boolean, dragNodeId: string): void {
+    this.isStartDrop = isDragging;
+    this.dragNodeId = dragNodeId;
+  }
+
+  private updateArrowLabelEditingState(isEditing: boolean): void {
+    this.arrowLabelEdit = isEditing;
   }
 
   build() {
@@ -112,7 +140,12 @@ export default struct MindMapPage {
               selectedNodeId: this.selectedNodeId,
               isDoubleClickAndEditing: this.isDoubleClickAndEditing,
               isStartDrop: this.isStartDrop,
-              dragNodeId: this.dragNodeId
+              dragNodeId: this.dragNodeId,
+              renderVersion: this.renderVersion,
+              onNodeSelectionChange: (nodeId: string) => this.selectNode(nodeId),
+              onNodeEditingChange: (isEditing: boolean) => this.updateNodeEditingState(isEditing),
+              onDragStateChange: (isDragging: boolean, dragNodeId: string) =>
+                this.updateDragState(isDragging, dragNodeId)
             })
               .width('100%')
               .height('100%');
@@ -123,7 +156,10 @@ export default struct MindMapPage {
                 model: this.model,
                 arrowData: item,
                 selectedNodeId: this.selectedNodeId,
-                arrowLabelEdit: this.arrowLabelEdit
+                arrowLabelEdit: this.arrowLabelEdit,
+                renderVersion: this.renderVersion,
+                onNodeSelectionChange: (nodeId: string) => this.selectNode(nodeId),
+                onArrowLabelEditingChange: (isEditing: boolean) => this.updateArrowLabelEditingState(isEditing)
               });
             });
           }
@@ -143,7 +179,7 @@ export default struct MindMapPage {
       this.selectedNodeId = '';
       this.isDoubleClickAndEditing = false;
       this.arrowLabelEdit = false;
-      this.model.selectNode("");
+      this.model.selectNode('');
     })
     .width('100%')
     .height('100%')

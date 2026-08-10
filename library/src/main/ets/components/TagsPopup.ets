@@ -19,17 +19,18 @@ import { NodeObj } from '../model/NodeObj';
 import { NodeHelper } from '../controller/NodeHelper';
 import { UtilsManager } from '../utils/UtilsManager';
 
-@Component
+@ComponentV2
 export default struct TagsPopup {
-  @Link model: MindElixirCore;
-  @State tagStr: string = '';
-  @State allTags: string[] = [];
-  @State uptNode: NodeObj | null = this.model.getSelectedNode();
+  @Require @Param model: MindElixirCore;
+  @Local tagStr: string = '';
+  @Local allTags: string[] = [];
+  @Local uptNode: NodeObj | null = null;
   private nodeHelper: NodeHelper = UtilsManager.getNodeHelper(this.model.getInstanceId())!;
 
   aboutToAppear(): void {
-    if (this.uptNode!.tags) {
-      this.tagStr = this.uptNode!.tags.join(',');
+    this.uptNode = this.model.getSelectedNode();
+    if (this.uptNode?.tags) {
+      this.tagStr = this.uptNode.tags.join(',');
     }
     this.getAllTags();
   }
@@ -38,13 +39,15 @@ export default struct TagsPopup {
    * 获取所有的Tags
    * @returns 去重后的Tags数组
    */
-  public getAllTags() {
+  public getAllTags(): void {
     const flatNodes = this.nodeHelper.getFlatNodes();
-    let allTags: string[] = [];
+    const allTags: string[] = [];
     if (flatNodes!) {
       flatNodes.forEach((item: NodeObj) => {
         if (item.tags!) {
-          allTags.push(...item.tags);
+          item.tags.forEach((tag: string) => {
+            allTags.push(tag);
+          });
         }
       });
     }

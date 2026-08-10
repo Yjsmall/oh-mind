@@ -23,12 +23,12 @@ import { MindElixirCore } from '../controller/MindElixirCore';
 import { MindElixirData } from '../model/NodeObj';
 
 @Entry
-@Component
+@ComponentV2
 export default struct MindElixir {
-  @Link model: MindElixirCore;
-  @Prop data: MindElixirData;
-  @State isShowTagsPopup: boolean = false;
-  @State showMenu: boolean = true;
+  @Require @Param model: MindElixirCore;
+  @Require @Param data: MindElixirData;
+  @Local isShowTagsPopup: boolean = false;
+  @Local showMenu: boolean = true;
 
   aboutToAppear(): void {
     GlobalContext.getInstance().setUiContext(this.getUIContext());

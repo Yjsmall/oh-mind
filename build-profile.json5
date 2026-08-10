@@ -1,13 +1,27 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "certpath": "/home/yu/.ohos/config/openharmony/default_ohos_mind_elixir_E3V7J7GTJzbS6i_y1TFhC3kSwdMoFVup6PnfW_aM3No=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BD3B89C708762CD4848BBDFA73837B8B2DE429ACE317AAF17831008BF34D5C58ECD153A218C4900",
+          "profile": "/home/yu/.ohos/config/openharmony/default_ohos_mind_elixir_E3V7J7GTJzbS6i_y1TFhC3kSwdMoFVup6PnfW_aM3No=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/home/yu/.ohos/config/openharmony/default_ohos_mind_elixir_E3V7J7GTJzbS6i_y1TFhC3kSwdMoFVup6PnfW_aM3No=.p12",
+          "storePassword": "0000001BD42E574FB0C455F66E6F0ED305732110177C568977EA4176EF0E53C1B99DE7DC1D6FC14F9C87D5"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
         "signingConfig": "default",
-        "compileSdkVersion": 12,
-        "compatibleSdkVersion": 12,
-        "runtimeOS": "OpenHarmony"
+        "compileSdkVersion": 23,
+        "compatibleSdkVersion": 23,
+        "targetSdkVersion": 23,
+        "runtimeOS": "OpenHarmony",
       }
     ],
     "buildModeSet": [
