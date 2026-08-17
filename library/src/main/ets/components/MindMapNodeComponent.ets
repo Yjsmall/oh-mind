@@ -108,16 +108,18 @@ export struct MindMapNodeComponent {
 
   aboutToAppear(): void {
     this.options = this.model.getMindOptions();
-    this.refreshNodeRenderingState();
+    this.refreshNodeRenderingState(false);
   }
 
   @Monitor('renderVersion')
   onMapRenderVersionChanged(): void {
-    this.refreshNodeRenderingState();
+    this.refreshNodeRenderingState(true);
   }
 
-  private refreshNodeRenderingState(): void {
-    this.newTopic = this.node.topic;
+  private refreshNodeRenderingState(preserveEditingDraft: boolean): void {
+    if (!preserveEditingDraft || !this.isDoubleClickAndEditing || this.selectedNodeId !== this.node.id) {
+      this.newTopic = this.node.topic;
+    }
     this.nodeStyles = this.createNodeStyles();
     this.linkStyles = this.createNodeStyles();
     this.foldBtnPoint = this.getFoldBtnPoint();
@@ -268,7 +270,7 @@ export struct MindMapNodeComponent {
           Span(span.text)
             .spanStyle(span, this.nodeStyles);
         }
-      });
+      }, (span: RichTextSpan, index: number) => `${span.originText ?? span.text}_${index}`);
     }
     .fontColor(this.nodeStyles.color)
     .fontSize(this.nodeStyles.fontSize)

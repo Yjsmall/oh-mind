@@ -100,7 +100,9 @@ export class MindElixirCore {
    * @returns 合并后的完整配置项
    */
   private mergeOptions(userOptions?: NodeOption): NodeOption {
-    const mergedOptions: NodeOption = DEFAULT_OPTIONS;
+    // Each core instance owns an independent option graph. Reusing the constant
+    // directly leaks nested option changes between separate mind maps.
+    const mergedOptions: NodeOption = deepClone(DEFAULT_OPTIONS);
     if (!userOptions) {
       return mergedOptions;
     }
@@ -214,9 +216,11 @@ export class MindElixirCore {
     if (!mindElixirData) {
       return;
     }
-    this.mindElixirData = mindElixirData;
-    this.originMindElixirData = deepClone(mindElixirData);
-    this.nodeHelper.calculateNodePosition(mindElixirData);
+    // State management V2 passes @Param objects by reference. Keep the public
+    // input immutable and perform all layout mutations on an internal copy.
+    this.mindElixirData = deepClone(mindElixirData);
+    this.originMindElixirData = deepClone(this.mindElixirData);
+    this.nodeHelper.calculateNodePosition(this.mindElixirData);
     this.initCanvas();
     this.notifyUpdate();
     if (this.options.allowUndo) {

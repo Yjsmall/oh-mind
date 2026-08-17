@@ -22,7 +22,6 @@ import { WindowManager } from '../utils/WindowManager';
 import { MindElixirCore } from '../controller/MindElixirCore';
 import { MindElixirData } from '../model/NodeObj';
 
-@Entry
 @ComponentV2
 export default struct MindElixir {
   @Require @Param model: MindElixirCore;
@@ -31,7 +30,13 @@ export default struct MindElixir {
   @Local showMenu: boolean = true;
 
   aboutToAppear(): void {
-    GlobalContext.getInstance().setUiContext(this.getUIContext());
+    const uiContext = this.getUIContext();
+    const globalContext = GlobalContext.getInstance();
+    globalContext.setUiContext(uiContext);
+    const hostContext = uiContext.getHostContext();
+    if (hostContext) {
+      globalContext.setContext(hostContext);
+    }
     WindowManager.initialize();
     this.model.init(this.data);
     const options = this.model.getMindOptions();

@@ -87,7 +87,7 @@ export default struct MenuBar {
           .rotate({ angle: item.angle ?? 0 })
           .onClick(item.action)
           .margin({ left: index === 0 ? 0 : 10 });
-      });
+      }, (_item: MenuItem, index: number) => index.toString());
     }
     .height(50)
     .justifyContent(FlexAlign.SpaceAround)

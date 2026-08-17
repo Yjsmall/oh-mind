@@ -39,16 +39,18 @@ export struct MindArrowLabel {
   }
 
   aboutToAppear(): void {
-    this.refreshArrowLabelState();
+    this.refreshArrowLabelState(false);
   }
 
   @Monitor('renderVersion')
   onMapRenderVersionChanged(): void {
-    this.refreshArrowLabelState();
+    this.refreshArrowLabelState(true);
   }
 
-  private refreshArrowLabelState(): void {
-    this.newLabel = this.arrowData.label;
+  private refreshArrowLabelState(preserveEditingDraft: boolean): void {
+    if (!preserveEditingDraft || !this.arrowLabelEdit) {
+      this.newLabel = this.arrowData.label;
+    }
     this.labelWidth = this.estimateTextWidth(this.arrowData.label);
   }
 

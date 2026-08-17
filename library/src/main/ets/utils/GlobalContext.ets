@@ -18,7 +18,7 @@ import { UIContext } from '@kit.ArkUI';
 
 export class GlobalContext {
   private static instance: GlobalContext;
-  private context: common.UIAbilityContext | null = null;
+  private context: common.Context | null = null;
   private uiContext: UIContext | null = null;
 
   public static getInstance(): GlobalContext {
@@ -28,11 +28,11 @@ export class GlobalContext {
     return GlobalContext.instance;
   }
 
-  setContext(context: common.UIAbilityContext): void {
+  setContext(context: common.Context): void {
     this.context = context;
   }
 
-  getContext(): common.UIAbilityContext | null {
+  getContext(): common.Context | null {
     return this.context;
   }
 

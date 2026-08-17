@@ -59,4 +59,4 @@ export {
   TextSize,
   FlatNodeObj,
   MenuOptionItem
-}
+};

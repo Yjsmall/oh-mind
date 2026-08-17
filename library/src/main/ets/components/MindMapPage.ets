@@ -25,7 +25,6 @@ import { ShortcutManager } from '../controller/ShortcutManager';
 import { UtilsManager } from '../utils/UtilsManager';
 import { MindArrowLabel } from './MindArrowLabel';
 
-@Entry
 @ComponentV2
 export default struct MindMapPage {
   @Require @Param model: MindElixirCore;
@@ -161,7 +160,7 @@ export default struct MindMapPage {
                 onNodeSelectionChange: (nodeId: string) => this.selectNode(nodeId),
                 onArrowLabelEditingChange: (isEditing: boolean) => this.updateArrowLabelEditingState(isEditing)
               });
-            });
+            }, (item: Arrow) => item.id);
           }
         }
         .focusable(true)

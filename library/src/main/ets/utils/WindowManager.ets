@@ -36,10 +36,10 @@ export class WindowManager {
    */
   public static async initialize(): Promise<void> {
     try {
-      const context: common.UIAbilityContext = GlobalContext.getInstance().getContext()!;
+      const context: common.Context = GlobalContext.getInstance().getContext()!;
       const instance = WindowManager.getInstance();
       instance.window = await window.getLastWindow(context);
-      const properties = await instance.window.getWindowProperties();
+      const properties = instance.window.getWindowProperties();
       instance.cachedSize = {
         width: Number(properties.drawableRect.width),
         height: Number(properties.drawableRect.height)
@@ -64,21 +64,42 @@ export class WindowManager {
   /**
    * 全屏窗口
    */
-  public maximize(): void {
-    this.window!.maximize();
+  public async maximize(): Promise<void> {
+    if (!this.window) {
+      return;
+    }
+    try {
+      await this.window.maximize();
+    } catch (error) {
+      console.error('Failed to maximize window:', error);
+    }
   }
 
   /**
    * 恢复窗口
    */
-  public recover(): void {
-    this.window!.recover();
+  public async recover(): Promise<void> {
+    if (!this.window) {
+      return;
+    }
+    try {
+      await this.window.recover();
+    } catch (error) {
+      console.error('Failed to recover window:', error);
+    }
   }
 
   /**
    * 缩小窗口
    */
-  public minimize(): void {
-    this.window!.minimize();
+  public async minimize(): Promise<void> {
+    if (!this.window) {
+      return;
+    }
+    try {
+      await this.window.minimize();
+    } catch (error) {
+      console.error('Failed to minimize window:', error);
+    }
   }
 }

@@ -171,7 +171,7 @@ export struct MindMenuItem {
           .backgroundColor("#ccc")
           .height(1)
           .visibility(index === this.menuOptions.length - 1 ? Visibility.None : Visibility.Visible);
-      });
+      }, (item: MenuOptionItem) => item.id);
     };
   }
 }

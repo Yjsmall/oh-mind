@@ -281,11 +281,10 @@ interface Arrow {
 
 ## 约束与限制
 
-在下述版本验证通过：
-使用 OpenHarmony SDK API 23 或更高版本的 DevEco Studio。
+使用 HarmonyOS Command Line Tools 6.1.1（API 24）完成编译验证，目标和兼容 SDK 均为 HarmonyOS API 23。
 
-项目的编译和兼容 SDK 基线为 API 23，ArkUI 组件采用状态管理 V2
-（`@ComponentV2`、`@Param`、`@Event`、`@Local` 和 `@Monitor`）。
+API 24 只作为当前已安装的编译工具链；应用的 API 能力基线以及全部平台 API 调用均限制在 API 23
+或更早版本。ArkUI 组件采用状态管理 V2（`@ComponentV2`、`@Param`、`@Event`、`@Local` 和 `@Monitor`）。
 
 ## 目录结构
 

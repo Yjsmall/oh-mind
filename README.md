@@ -283,11 +283,11 @@ interface Arrow {
 
 ## Constraints and Limitations
 
-Verified on the following versions:
-DevEco Studio with OpenHarmony SDK API 23 or later.
+Verified with HarmonyOS Command Line Tools 6.1.1 (API 24), targeting and remaining compatible with HarmonyOS API 23.
 
-The project compiles and targets API 23. Its ArkUI components use state
-management V2 (`@ComponentV2`, `@Param`, `@Event`, `@Local`, and `@Monitor`).
+API 24 is used only as the installed compilation toolchain. The application API baseline and all platform API calls are
+limited to API 23 or earlier. Its ArkUI components use state management V2 (`@ComponentV2`, `@Param`, `@Event`,
+`@Local`, and `@Monitor`).
 
 ## Directory Structure
 

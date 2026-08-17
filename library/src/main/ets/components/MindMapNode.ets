@@ -65,7 +65,7 @@ export default struct MindMapNode {
                 this.onDragStateChange(isDragging, dragNodeId)
             });
           }
-        });
+        }, (item: NodeObj) => item.id);
       }
     };
   }

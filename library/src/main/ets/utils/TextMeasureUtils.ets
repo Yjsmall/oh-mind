@@ -36,7 +36,7 @@ export class TextMeasureUtils {
   // 测量文本尺寸
   public measureText(textContent: string, fontSize: Length = 20, maxWidth: number = 200): TextSize {
     const uiContext: UIContext | null = GlobalContext.getInstance().getUiContext()!;
-    const text = RichTextParser.cleanHtmlTags(textContent)
+    const text = RichTextParser.cleanHtmlTags(textContent);
     // 先测量文本的实际宽度（不限制宽度）
     const unconstrainedSize = uiContext.getMeasureUtils().measureTextSize({
       textContent: text,
