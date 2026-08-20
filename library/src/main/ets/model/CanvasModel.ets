@@ -41,9 +41,44 @@ export interface CardNoteCanvasExtension {
 }
 
 export interface CanvasDocument {
-  readonly nodes: CanvasTextNode[];
-  readonly edges: CanvasEdge[];
+  readonly nodes: ReadonlyArray<CanvasTextNode>;
+  readonly edges: ReadonlyArray<CanvasEdge>;
   readonly cardnote?: CardNoteCanvasExtension;
+}
+
+export function cloneCanvasTextNode(node: CanvasTextNode): CanvasTextNode {
+  return {
+    id: node.id,
+    type: node.type,
+    text: node.text,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    color: node.color
+  };
+}
+
+export function cloneCanvasEdge(edge: CanvasEdge): CanvasEdge {
+  return {
+    id: edge.id,
+    fromNode: edge.fromNode,
+    fromSide: edge.fromSide,
+    fromEnd: edge.fromEnd,
+    toNode: edge.toNode,
+    toSide: edge.toSide,
+    toEnd: edge.toEnd,
+    label: edge.label,
+    color: edge.color
+  };
+}
+
+export function cloneCanvasViewport(viewport: CanvasViewport): CanvasViewport {
+  return {
+    x: viewport.x,
+    y: viewport.y,
+    scale: viewport.scale
+  };
 }
 
 export function resolveCanvasEdgeFromEnd(edge: CanvasEdge): CanvasEdgeEnd {
@@ -56,34 +91,11 @@ export function resolveCanvasEdgeToEnd(edge: CanvasEdge): CanvasEdgeEnd {
 
 export function cloneCanvasDocument(document: CanvasDocument): CanvasDocument {
   return {
-    nodes: document.nodes.map((node: CanvasTextNode): CanvasTextNode => ({
-      id: node.id,
-      type: node.type,
-      text: node.text,
-      x: node.x,
-      y: node.y,
-      width: node.width,
-      height: node.height,
-      color: node.color
-    })),
-    edges: document.edges.map((edge: CanvasEdge): CanvasEdge => ({
-      id: edge.id,
-      fromNode: edge.fromNode,
-      fromSide: edge.fromSide,
-      fromEnd: edge.fromEnd,
-      toNode: edge.toNode,
-      toSide: edge.toSide,
-      toEnd: edge.toEnd,
-      label: edge.label,
-      color: edge.color
-    })),
+    nodes: document.nodes.map((node: CanvasTextNode): CanvasTextNode => cloneCanvasTextNode(node)),
+    edges: document.edges.map((edge: CanvasEdge): CanvasEdge => cloneCanvasEdge(edge)),
     cardnote: document.cardnote === undefined ? undefined : {
       schemaVersion: document.cardnote.schemaVersion,
-      viewport: {
-        x: document.cardnote.viewport.x,
-        y: document.cardnote.viewport.y,
-        scale: document.cardnote.viewport.scale
-      }
+      viewport: cloneCanvasViewport(document.cardnote.viewport)
     }
   };
 }

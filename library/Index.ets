@@ -13,98 +13,61 @@
  * limitations under the License.
  */
 
-import MindElixir from './src/main/ets/components/MindElixir';
-import { MindElixirCore } from './src/main/ets/controller/MindElixirCore';
-import {
-  CanvasPosition,
-  CanvasSize,
-  NodeObj,
-  NodeOption,
-  MindElixirData,
-  Arrow,
-  LayoutDirection,
-  MoveDirection,
-  DragOrientation,
-  NodeStyle,
-  Coordinate,
-  NodeSize,
-  LayoutResult,
-  Bounds,
-  ParentNode,
-  WindowRect,
-  TextSize,
-  FlatNodeObj,
-  MenuOptionItem
-} from './src/main/ets/model/NodeObj';
-import {
+export {
   CARDNOTE_CANVAS_SCHEMA_VERSION,
-  CardNoteCanvasExtension,
-  CanvasDocument,
-  CanvasEdge,
-  CanvasEdgeEnd,
-  CanvasNodeType,
-  CanvasSide,
-  CanvasTextNode,
-  CanvasViewport,
   JSON_CANVAS_DEFAULT_FROM_END,
   JSON_CANVAS_DEFAULT_TO_END,
   cloneCanvasDocument,
+  cloneCanvasEdge,
+  cloneCanvasTextNode,
+  cloneCanvasViewport,
   resolveCanvasEdgeFromEnd,
   resolveCanvasEdgeToEnd
 } from './src/main/ets/model/CanvasModel';
-import {
-  CanvasValidationError,
-  CanvasValidationErrorCode,
-  validateCanvasDocument
-} from './src/main/ets/model/CanvasValidation';
-import {
-  CanvasJsonCodecError,
-  CanvasJsonCodecErrorCode,
-  parseCanvasJson,
-  serializeCanvasJson
-} from './src/main/ets/codec/CanvasJsonCodec';
-
-export {
-  MindElixir,
-  MindElixirCore,
-  CanvasPosition,
-  CanvasSize,
-  NodeObj,
-  NodeOption,
-  MindElixirData,
-  Arrow,
-  LayoutDirection,
-  MoveDirection,
-  DragOrientation,
-  NodeStyle,
-  Coordinate,
-  NodeSize,
-  LayoutResult,
-  Bounds,
-  ParentNode,
-  WindowRect,
-  TextSize,
-  FlatNodeObj,
-  MenuOptionItem,
-  CARDNOTE_CANVAS_SCHEMA_VERSION,
+export type {
   CardNoteCanvasExtension,
   CanvasDocument,
   CanvasEdge,
   CanvasEdgeEnd,
-  CanvasJsonCodecError,
-  CanvasJsonCodecErrorCode,
   CanvasNodeType,
   CanvasSide,
   CanvasTextNode,
+  CanvasViewport
+} from './src/main/ets/model/CanvasModel';
+export {
   CanvasValidationError,
-  CanvasValidationErrorCode,
-  CanvasViewport,
-  JSON_CANVAS_DEFAULT_FROM_END,
-  JSON_CANVAS_DEFAULT_TO_END,
-  cloneCanvasDocument,
-  parseCanvasJson,
-  resolveCanvasEdgeFromEnd,
-  resolveCanvasEdgeToEnd,
-  serializeCanvasJson,
   validateCanvasDocument
-};
+} from './src/main/ets/model/CanvasValidation';
+export type { CanvasValidationErrorCode } from './src/main/ets/model/CanvasValidation';
+export {
+  CanvasJsonCodecError,
+  parseCanvasJson,
+  serializeCanvasJson
+} from './src/main/ets/codec/CanvasJsonCodec';
+export type { CanvasJsonCodecErrorCode } from './src/main/ets/codec/CanvasJsonCodec';
+export {
+  CanvasCommandError,
+  applyCanvasCommand,
+  applyCanvasTransaction
+} from './src/main/ets/commands/CanvasCommand';
+export type {
+  AddCanvasEdgeCommand,
+  AddCanvasNodeCommand,
+  CanvasCommand,
+  CanvasCommandErrorCode,
+  ClearCanvasViewportCommand,
+  RemoveCanvasEdgeCommand,
+  RemoveCanvasNodeCommand,
+  ReorderCanvasNodeCommand,
+  SetCanvasViewportCommand,
+  UpdateCanvasEdgeCommand,
+  UpdateCanvasNodeCommand
+} from './src/main/ets/commands/CanvasCommand';
+export {
+  CanvasController,
+  CanvasControllerError
+} from './src/main/ets/controller/CanvasController';
+export type {
+  CanvasControllerErrorCode,
+  CanvasControllerOptions
+} from './src/main/ets/controller/CanvasController';

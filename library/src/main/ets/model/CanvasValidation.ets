@@ -133,15 +133,15 @@ export function validateCanvasDocument(document: CanvasDocument): void {
   }
   assertAllowedFields(document, DOCUMENT_FIELDS, 'document', 'INVALID_DOCUMENT');
 
-  const nodes = document.nodes === undefined ? [] : document.nodes;
-  const edges = document.edges === undefined ? [] : document.edges;
+  const nodes: ReadonlyArray<CanvasTextNode> = document.nodes === undefined ? [] : document.nodes;
+  const edges: ReadonlyArray<CanvasEdge> = document.edges === undefined ? [] : document.edges;
   if (!Array.isArray(nodes) || !Array.isArray(edges)) {
     fail('INVALID_DOCUMENT', 'Canvas nodes and edges must be arrays when present');
   }
 
   const nodeIds = new Set<string>();
   for (let index = 0; index < nodes.length; index++) {
-    const node = nodes[index];
+    const node: CanvasTextNode = nodes[index];
     validateNode(node, index);
     if (nodeIds.has(node.id)) {
       fail('DUPLICATE_NODE_ID', `Duplicate Canvas node id: ${node.id}`);
@@ -151,7 +151,7 @@ export function validateCanvasDocument(document: CanvasDocument): void {
 
   const edgeIds = new Set<string>();
   for (let index = 0; index < edges.length; index++) {
-    const edge = edges[index];
+    const edge: CanvasEdge = edges[index];
     validateEdge(edge, index);
     if (edgeIds.has(edge.id)) {
       fail('DUPLICATE_EDGE_ID', `Duplicate Canvas edge id: ${edge.id}`);

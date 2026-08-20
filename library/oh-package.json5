@@ -3,19 +3,19 @@
   "name": "@ohos/mind-elixir",
   "types": "",
   "keywords": [
-    "mind",
-    "OpenHarmony",
+    "canvas",
+    "json-canvas",
     "HarmonyOS"
   ],
   "author": "ohos_tpc",
-  "description": "基于HarmonyOS平台开发的轻量级、高性能思维导图框架，致力于为开发者提供一站式的思维可视化解决方案。",
+  "description": "CardNote 原生自由画布的 JSON Canvas 核心模型、命令与历史控制器。",
   "main": "Index.ets",
   "type": "module",
   "repository": "https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "tags": [
-    "mind",
-    "OpenHarmony",
+    "canvas",
+    "json-canvas",
     "HarmonyOS"
   ],
   "dependencies": {},

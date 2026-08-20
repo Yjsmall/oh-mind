@@ -1,235 +1,209 @@
-/*
- * Copyright (C) 2025 Huawei Device Co., Ltd.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
+import { describe, it, expect } from '@ohos/hypium';
 import {
-  DragOrientation,
-  LayoutDirection,
-  MindElixirCore,
-  MindElixirData,
-  MoveDirection,
-  NodeObj
+  CanvasCommand,
+  CanvasCommandError,
+  CanvasController,
+  CanvasControllerError,
+  CanvasDocument,
+  CanvasTextNode,
+  applyCanvasCommand,
+  serializeCanvasJson
 } from '@ohos/mind-elixir';
-import { GlobalContext } from '@ohos/mind-elixir/src/main/ets/utils/GlobalContext';
-import { MeasureOptions, MeasureUtils, UIContext } from '@kit.ArkUI';
 
-class TestMeasureUtils extends MeasureUtils {
-  measureTextSize(_options: MeasureOptions): SizeOptions {
-    return { width: 100, height: 20 };
-  }
-}
-
-class TestUIContext extends UIContext {
-  private readonly testMeasureUtils: MeasureUtils = new TestMeasureUtils();
-
-  getMeasureUtils(): MeasureUtils {
-    return this.testMeasureUtils;
-  }
-
-  px2vp(value: number): number {
-    return value;
-  }
-}
-
-function createMindData(): MindElixirData {
+function node(id: string, x: number = 0): CanvasTextNode {
   return {
-    nodeData: {
-      id: 'root',
-      topic: 'root',
-      children: [
-        { id: 'a', topic: 'node-a', children: [] },
-        { id: 'b', topic: 'node-b', children: [] }
-      ]
-    },
-    arrows: []
+    id,
+    type: 'text',
+    text: id,
+    x,
+    y: 0,
+    width: 200,
+    height: 100
   };
 }
 
-function findNodeById(node: NodeObj | null | undefined, id: string): NodeObj | null {
-  if (!node) {
-    return null;
-  }
-  if (node.id === id) {
-    return node;
-  }
-  if (node.children) {
-    for (const child of node.children) {
-      const result = findNodeById(child, id);
-      if (result) {
-        return result;
-      }
-    }
-  }
-  return null;
+function documentWithTwoNodes(): CanvasDocument {
+  return {
+    nodes: [node('a'), node('b', 300)],
+    edges: []
+  };
 }
 
-function findNodeByTopic(node: NodeObj | null | undefined, topic: string): NodeObj | null {
-  if (!node) {
-    return null;
-  }
-  if (node.topic === topic) {
-    return node;
-  }
-  if (node.children) {
-    for (const child of node.children) {
-      const result = findNodeByTopic(child, topic);
-      if (result) {
-        return result;
-      }
+function expectCommandError(action: () => void, expectedCode: string): void {
+  let caught = false;
+  let actualCode = '';
+  try {
+    action();
+  } catch (error) {
+    caught = true;
+    if (error instanceof CanvasCommandError || error instanceof CanvasControllerError) {
+      actualCode = error.code;
     }
   }
-  return null;
+  expect(caught).assertEqual(true);
+  expect(actualCode).assertEqual(expectedCode);
 }
 
 export default function localUnitTest() {
-  describe('localUnitTest', () => {
-    // Defines a test suite. Two parameters are supported: test suite name and test suite function.
-    beforeAll(() => {
-      // Presets an action, which is performed only once before all test cases of the test suite start.
-      // This API supports only one parameter: preset action function.
-      GlobalContext.getInstance().setUiContext(new TestUIContext());
-    });
-    beforeEach(() => {
-      // Presets an action, which is performed before each unit test case starts.
-      // The number of execution times is the same as the number of test cases defined by **it**.
-      // This API supports only one parameter: preset action function.
-    });
-    afterEach(() => {
-      // Presets a clear action, which is performed after each unit test case ends.
-      // The number of execution times is the same as the number of test cases defined by **it**.
-      // This API supports only one parameter: clear action function.
-    });
-    afterAll(() => {
-      // Presets a clear action, which is performed after all test cases of the test suite end.
-      // This API supports only one parameter: clear action function.
-    });
-    it('assertContain', 0, () => {
-      // Defines a test case. This API supports three parameters: test case name, filter parameter, and test case function.
-      let a = 'abc';
-      let b = 'b';
-      // Defines a variety of assertion methods, which are used to declare expected boolean conditions.
-      expect(a).assertContain(b);
-      expect(a).assertEqual(a);
-    });
-    it('keepsInputDataImmutable', 0, () => {
-      const data: MindElixirData = {
-        nodeData: {
-          id: 'root',
-          topic: 'root',
-          children: [{ id: 'child', topic: 'child' }]
-        }
-      };
-      const snapshot = JSON.stringify(data);
-      const model = new MindElixirCore({ locale: 'zh' });
-
-      model.init(data);
-
-      expect(JSON.stringify(data)).assertEqual(snapshot);
-      model.destroy();
-    });
-    it('keepsCoreEditingCommandsEquivalent', 0, () => {
-      const model = new MindElixirCore({ locale: 'zh' });
-      model.init(createMindData());
-
-      expect(model.add('a', 'a-child')).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.children?.length).assertEqual(1);
-      expect(model.updateNode({ id: 'a', topic: 'node-a-updated' })).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.topic).assertEqual('node-a-updated');
-      expect(model.remove(findNodeById(model.getData()?.nodeData, 'a')?.children?.[0].id!)).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.children?.length).assertEqual(0);
-
-      const childCount = model.getData()?.nodeData.children?.length ?? 0;
-      expect(model.addSibling('a', true)).assertEqual(true);
-      expect(model.getData()?.nodeData.children?.length).assertEqual(childCount + 1);
-      expect(model.addParent('b', 'node-b-parent')).assertEqual(true);
-      expect(findNodeByTopic(model.getData()?.nodeData, 'node-b-parent') !== null).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'b') !== null).assertEqual(true);
-
-      model.destroy();
-    });
-    it('keepsSelectionLayoutDragAndLinkCommandsEquivalent', 0, () => {
-      const model = new MindElixirCore({ locale: 'zh' });
-      model.init(createMindData());
-
-      expect(model.selectNode('a')).assertEqual(true);
-      expect(model.getSelectedNodeId()).assertEqual('a');
-      expect(model.getSelectedNode()?.topic).assertEqual('node-a');
-      model.foldNode('a');
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.expanded).assertEqual(false);
-      model.expandedNode('a');
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.expanded).assertEqual(true);
-
-      model.setMindDirection(LayoutDirection.LEFT);
-      expect(model.getMindDirection()).assertEqual(LayoutDirection.LEFT);
-      model.setScaleVal(1.5);
-      expect(model.getScaleVal()).assertEqual(1.5);
-
-      model.startLink('a', true, true);
-      expect(model.hasLinkedNode()).assertEqual(true);
-      model.renderLink('b');
-      expect(model.getData()?.arrows?.length).assertEqual(1);
-      expect(model.getData()?.arrows?.[0].bidirectional).assertEqual(true);
-      const arrowId = model.getData()?.arrows?.[0].id!;
-      model.updateLinkLabel(arrowId, 'a-to-b');
-      expect(model.getData()?.arrows?.[0].label).assertEqual('a-to-b');
-      model.startLink('', false);
-      expect(model.hasLinkedNode()).assertEqual(false);
-
-      expect(model.move('a', MoveDirection.DOWN)).assertEqual(true);
-      expect(model.getData()?.nodeData.children?.[1].id).assertEqual('a');
-      model.moveNodeToTargetNode('a', 'b', DragOrientation.MIDDLE);
-      expect(findNodeById(model.getData()?.nodeData, 'b')?.children?.[0].id).assertEqual('a');
-      model.setDragStatusForSubtree('b', false);
-      expect(findNodeById(model.getData()?.nodeData, 'b')?.isCantDrag).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.isCantDrag).assertEqual(true);
-      model.setDragStatusForSubtree('b', true);
-      expect(findNodeById(model.getData()?.nodeData, 'b')?.isCantDrag).assertEqual(false);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.isCantDrag).assertEqual(false);
-
-      model.destroy();
-    });
-    it('keepsUndoAndRedoEquivalent', 0, () => {
-      const model = new MindElixirCore({ locale: 'zh', allowUndo: true });
-      model.init(createMindData());
-      expect(model.add('a', 'undo-child')).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.children?.length).assertEqual(1);
-
-      expect(model.undo()).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.children?.length).assertEqual(0);
-      expect(model.redo()).assertEqual(true);
-      expect(findNodeById(model.getData()?.nodeData, 'a')?.children?.length).assertEqual(1);
-
-      model.destroy();
-    });
-    it('isolatesOptionsBetweenMindMapInstances', 0, () => {
-      const customized = new MindElixirCore({
-        locale: 'zh',
-        nodeSpacing: { horizontal: 5, vertical: 6 },
-        nodeStyle: { fontSize: 44 },
-        lineStyle: { width: 9 }
+  describe('canvasCoreTest', () => {
+    it('appliesNodeCommandsWithoutMutatingInput', 0, () => {
+      const source = documentWithTwoNodes();
+      const sourceJson = serializeCanvasJson(source);
+      const added = applyCanvasCommand(source, {
+        kind: 'addNode',
+        node: node('c', 600),
+        index: 1
       });
-      const defaults = new MindElixirCore({ locale: 'zh' });
+      const updated = applyCanvasCommand(added, {
+        kind: 'updateNode',
+        nodeId: 'c',
+        node: { id: 'c', type: 'text', text: '# changed', x: 610, y: 20, width: 240, height: 120 }
+      });
 
-      expect(customized.getMindOptions().nodeStyle?.fontSize).assertEqual(44);
-      expect(defaults.getMindOptions().nodeSpacing?.horizontal).assertEqual(50);
-      expect(defaults.getMindOptions().nodeSpacing?.vertical).assertEqual(30);
-      expect(defaults.getMindOptions().nodeStyle?.fontSize).assertEqual(20);
-      expect(defaults.getMindOptions().lineStyle?.width).assertEqual(2);
+      expect(serializeCanvasJson(source)).assertEqual(sourceJson);
+      expect(updated.nodes[1].id).assertEqual('c');
+      expect(updated.nodes[1].text).assertEqual('# changed');
+      expect(updated.nodes[1].x).assertEqual(610);
+    });
 
-      customized.destroy();
-      defaults.destroy();
+    it('createsUpdatesAndRemovesEdges', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      controller.execute({
+        kind: 'addEdge',
+        edge: { id: 'a-b', fromNode: 'a', toNode: 'b' }
+      });
+      controller.execute({
+        kind: 'updateEdge',
+        edgeId: 'a-b',
+        edge: { id: 'a-b', fromNode: 'a', fromSide: 'right', toNode: 'b', toSide: 'left', label: 'next' }
+      });
+
+      expect(controller.getSnapshot().edges[0].label).assertEqual('next');
+      controller.execute({ kind: 'removeEdge', edgeId: 'a-b' });
+      expect(controller.getSnapshot().edges.length).assertEqual(0);
+    });
+
+    it('removesConnectedEdgesWithNode', 0, () => {
+      const initial: CanvasDocument = {
+        nodes: [node('a'), node('b', 300), node('c', 600)],
+        edges: [
+          { id: 'a-b', fromNode: 'a', toNode: 'b' },
+          { id: 'b-c', fromNode: 'b', toNode: 'c' }
+        ]
+      };
+      const controller = new CanvasController(initial);
+
+      controller.execute({ kind: 'removeNode', nodeId: 'b' });
+
+      expect(controller.getSnapshot().nodes.length).assertEqual(2);
+      expect(controller.getSnapshot().edges.length).assertEqual(0);
+    });
+
+    it('reordersNodeZOrderAndPersistsViewport', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      controller.execute({ kind: 'reorderNode', nodeId: 'a', index: 1 });
+      controller.execute({ kind: 'setViewport', viewport: { x: 12.5, y: -4, scale: 1.5 } });
+
+      const snapshot = controller.getSnapshot();
+      expect(snapshot.nodes[0].id).assertEqual('b');
+      expect(snapshot.nodes[1].id).assertEqual('a');
+      expect(snapshot.cardnote?.viewport.x).assertEqual(12.5);
+      expect(snapshot.cardnote?.viewport.scale).assertEqual(1.5);
+
+      controller.execute({ kind: 'clearViewport' });
+      expect(controller.getSnapshot().cardnote === undefined).assertEqual(true);
+    });
+
+    it('recordsOneHistoryItemPerTransaction', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      const commands: CanvasCommand[] = [
+        { kind: 'addNode', node: node('c', 600) },
+        { kind: 'addEdge', edge: { id: 'b-c', fromNode: 'b', toNode: 'c' } },
+        { kind: 'setViewport', viewport: { x: 10, y: 20, scale: 2 } }
+      ];
+
+      controller.executeTransaction(commands);
+      expect(controller.getSnapshot().nodes.length).assertEqual(3);
+      expect(controller.getSnapshot().edges.length).assertEqual(1);
+      expect(controller.undo()).assertEqual(true);
+      expect(serializeCanvasJson(controller.getSnapshot())).assertEqual(serializeCanvasJson(documentWithTwoNodes()));
+      expect(controller.undo()).assertEqual(false);
+      expect(controller.redo()).assertEqual(true);
+      expect(controller.getSnapshot().nodes.length).assertEqual(3);
+    });
+
+    it('keepsSnapshotAndHistoryWhenTransactionFails', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      const before = serializeCanvasJson(controller.getSnapshot());
+      const commands: CanvasCommand[] = [
+        { kind: 'addNode', node: node('c', 600) },
+        { kind: 'addEdge', edge: { id: 'c-missing', fromNode: 'c', toNode: 'missing' } }
+      ];
+
+      let caught = false;
+      try {
+        controller.executeTransaction(commands);
+      } catch (_error) {
+        caught = true;
+      }
+
+      expect(caught).assertEqual(true);
+      expect(serializeCanvasJson(controller.getSnapshot())).assertEqual(before);
+      expect(controller.canUndo()).assertEqual(false);
+      expect(controller.canRedo()).assertEqual(false);
+    });
+
+    it('clearsRedoAfterNewOperation', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      controller.execute({ kind: 'addNode', node: node('c', 600) });
+      expect(controller.undo()).assertEqual(true);
+      expect(controller.canRedo()).assertEqual(true);
+
+      controller.execute({ kind: 'setViewport', viewport: { x: 0, y: 0, scale: 1.25 } });
+      expect(controller.canRedo()).assertEqual(false);
+    });
+
+    it('doesNotRecordNoOpTransactions', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      controller.execute({ kind: 'updateNode', nodeId: 'a', node: node('a') });
+
+      expect(controller.canUndo()).assertEqual(false);
+    });
+
+    it('boundsHistoryAndResetsItWhenReplacingSnapshot', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes(), { historyLimit: 1 });
+      controller.execute({ kind: 'addNode', node: node('c', 600) });
+      controller.execute({ kind: 'setViewport', viewport: { x: 1, y: 2, scale: 1.5 } });
+
+      expect(controller.undo()).assertEqual(true);
+      expect(controller.undo()).assertEqual(false);
+      controller.replaceSnapshot({ nodes: [node('replacement')], edges: [] });
+      expect(controller.canUndo()).assertEqual(false);
+      expect(controller.canRedo()).assertEqual(false);
+      expect(controller.getSnapshot().nodes[0].id).assertEqual('replacement');
+    });
+
+    it('returnsIndependentSnapshots', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      const first = controller.getSnapshot();
+      const second = controller.getSnapshot();
+
+      expect(first === second).assertEqual(false);
+      expect(first.nodes === second.nodes).assertEqual(false);
+      expect(first.nodes[0] === second.nodes[0]).assertEqual(false);
+    });
+
+    it('reportsCommandAndControllerErrors', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      expectCommandError((): void => {
+        controller.execute({ kind: 'addNode', node: node('a') });
+      }, 'NODE_ALREADY_EXISTS');
+      expectCommandError((): void => {
+        controller.execute({ kind: 'reorderNode', nodeId: 'a', index: 3 });
+      }, 'INVALID_NODE_INDEX');
+      expectCommandError((): void => {
+        new CanvasController(documentWithTwoNodes(), { historyLimit: 0 });
+      }, 'INVALID_HISTORY_LIMIT');
     });
   });
 }

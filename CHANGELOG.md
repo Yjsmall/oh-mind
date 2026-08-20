@@ -1,3 +1,9 @@
+## 2.0.0
+
+- Replaced the tree-shaped MindElixir API with a JSON Canvas 1.0 text-node and edge core.
+- Added strict validation, stable JSON codec, immutable snapshots, transactional commands, and bounded undo/redo history.
+- Removed the legacy ArkUI tree renderer, automatic tree layout, `MindElixirCore`, and `NodeObj` contracts.
+
 ## 1.0.1
 - 修改版本号，发布正式版本
 
