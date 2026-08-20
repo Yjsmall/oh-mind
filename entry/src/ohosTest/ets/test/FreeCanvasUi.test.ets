@@ -74,5 +74,53 @@ export default function freeCanvasUiTest() {
       expect(resized.right - resized.left > before.right - before.left).assertEqual(true);
       expect(resized.bottom - resized.top > before.bottom - before.top).assertEqual(true);
     });
+
+    it('createsLabelsReconnectsAndDeletesEdge', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'toolbar-fit')).click();
+      await (await component(driver, 'toolbar-select')).click();
+      const source = await component(driver, 'free-canvas-node-source');
+      const idea = await component(driver, 'free-canvas-node-idea');
+      await source.click();
+      const anchor = await component(driver, 'free-canvas-anchor-right');
+      const anchorCenter = await anchor.getBoundsCenter();
+      const ideaBounds = await idea.getBounds();
+      await driver.drag(anchorCenter.x, anchorCenter.y, ideaBounds.left + 4,
+        (ideaBounds.top + ideaBounds.bottom) / 2, 600);
+      await driver.delayMs(UI_SETTLE_MS);
+
+      const label = await component(driver, 'free-canvas-edge-label');
+      await label.inputText('new relation');
+      await (await component(driver, 'free-canvas-edge-label-save')).click();
+      await (await component(driver, 'free-canvas-edge-both')).click();
+
+      const endpoint = await component(driver, 'free-canvas-edge-to');
+      const endpointCenter = await endpoint.getBoundsCenter();
+      const resultBounds = await (await component(driver, 'free-canvas-node-result')).getBounds();
+      await driver.drag(endpointCenter.x, endpointCenter.y, resultBounds.left + 4,
+        (resultBounds.top + resultBounds.bottom) / 2, 600);
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await component(driver, 'free-canvas-edge-to')) !== undefined).assertEqual(true);
+
+      await (await component(driver, 'free-canvas-edge-delete')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      const edgeTools = await driver.findComponents(ON.id('free-canvas-edge-label'));
+      expect(edgeTools.length).assertEqual(0);
+    });
+
+    it('copiesSelectionAndRestoresItWithUndo', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'free-canvas-node-source')).click();
+      const toolbar = await component(driver, 'main-toolbar');
+      const copyButton = await toolbar.scrollSearch(ON.id('toolbar-copy'));
+      await copyButton.click();
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await component(driver, 'free-canvas-node-source-copy-1')) !== undefined).assertEqual(true);
+      const undoButton = await toolbar.scrollSearch(ON.id('toolbar-undo'));
+      await undoButton.click();
+      await driver.delayMs(UI_SETTLE_MS);
+      const copies = await driver.findComponents(ON.id('free-canvas-node-source-copy-1'));
+      expect(copies.length).assertEqual(0);
+    });
   });
 }

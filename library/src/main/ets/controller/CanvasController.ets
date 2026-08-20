@@ -54,6 +54,18 @@ export class CanvasController {
     return this.getSnapshot();
   }
 
+  commitSnapshot(document: CanvasDocument): CanvasDocument {
+    validateCanvasDocument(document);
+    const candidate = cloneCanvasDocument(document);
+    if (serializeCanvasJson(this.document) === serializeCanvasJson(candidate)) {
+      return this.getSnapshot();
+    }
+    this.pushBounded(this.undoHistory, this.document);
+    this.redoHistory = [];
+    this.document = candidate;
+    return this.getSnapshot();
+  }
+
   execute(command: CanvasCommand): CanvasDocument {
     return this.executeTransaction([command]);
   }

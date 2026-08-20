@@ -170,6 +170,28 @@ export default function localUnitTest() {
       expect(controller.canUndo()).assertEqual(false);
     });
 
+    it('commitsCompletedCandidateSnapshotsAsSingleHistoryItems', 0, () => {
+      const controller = new CanvasController(documentWithTwoNodes());
+      const candidate: CanvasDocument = {
+        nodes: [
+          { id: 'a', type: 'text', text: 'a', x: 25, y: 10, width: 240, height: 120 },
+          node('b', 300)
+        ],
+        edges: [{ id: 'a-b', fromNode: 'a', toNode: 'b' }]
+      };
+      controller.commitSnapshot(candidate);
+      controller.commitSnapshot(candidate);
+      expect(controller.canUndo()).assertEqual(true);
+      expect(controller.getSnapshot().nodes[0].x).assertEqual(25);
+      expect(controller.getSnapshot().edges.length).assertEqual(1);
+      expect(controller.undo()).assertEqual(true);
+      expect(controller.getSnapshot().nodes[0].x).assertEqual(0);
+      expect(controller.getSnapshot().edges.length).assertEqual(0);
+      expect(controller.undo()).assertEqual(false);
+      expect(controller.redo()).assertEqual(true);
+      expect(controller.getSnapshot().nodes[0].width).assertEqual(240);
+    });
+
     it('boundsHistoryAndResetsItWhenReplacingSnapshot', 0, () => {
       const controller = new CanvasController(documentWithTwoNodes(), { historyLimit: 1 });
       controller.execute({ kind: 'addNode', node: node('c', 600) });

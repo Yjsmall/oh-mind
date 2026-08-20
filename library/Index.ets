@@ -101,9 +101,31 @@ export type {
   CanvasResizeHandle,
   CanvasSize
 } from './src/main/ets/geometry/FreeCanvasGeometry';
+export {
+  CanvasEditingError,
+  alignCanvasNodes,
+  arrangeCanvasNodes,
+  autoArrangeCanvasNodes,
+  copyCanvasSelection,
+  deleteCanvasSelection,
+  distanceToCanvasSegment,
+  distributeCanvasNodes,
+  findCanvasConnectionTarget,
+  findCanvasEdgeAt,
+  nearestCanvasNodeSide
+} from './src/main/ets/geometry/CanvasEditingGeometry';
+export type {
+  CanvasAlignment,
+  CanvasArrangement,
+  CanvasConnectionTarget,
+  CanvasCopyResult,
+  CanvasDistribution,
+  CanvasEditingErrorCode
+} from './src/main/ets/geometry/CanvasEditingGeometry';
 export { FreeCanvasController } from './src/main/ets/controller/FreeCanvasController';
 export type {
   FreeCanvasControllerBinding,
+  FreeCanvasEdgeDirection,
   FreeCanvasInteractionMode
 } from './src/main/ets/controller/FreeCanvasController';
 export { FreeCanvas } from './src/main/ets/components/FreeCanvas';

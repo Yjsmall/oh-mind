@@ -4,6 +4,7 @@
 - Added strict validation, stable JSON codec, immutable snapshots, transactional commands, and bounded undo/redo history.
 - Removed the legacy ArkUI tree renderer, automatic tree layout, `MindElixirCore`, and `NodeObj` contracts.
 - Added the native ArkUI V2 `FreeCanvas`, host node builders, semantic completion events, viewport controls, selection, dragging, resizing, zooming, panning, and keyboard nudging.
+- Added four-side edge creation, edge selection, labels, directions, endpoint reconnection, session undo/redo, copy/delete, alignment, arrangement, distribution, and deterministic explicit auto-arrange.
 
 ## 1.0.1
 - 修改版本号，发布正式版本

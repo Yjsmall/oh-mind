@@ -37,6 +37,18 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   readonly clearSelection = (): void => {
     this.clearCount++;
   };
+  readonly canUndo = (): boolean => false;
+  readonly canRedo = (): boolean => false;
+  readonly undo = (): boolean => false;
+  readonly redo = (): boolean => false;
+  readonly copySelection = (): boolean => false;
+  readonly deleteSelection = (): boolean => false;
+  readonly alignSelection = (): boolean => false;
+  readonly arrangeSelection = (): boolean => false;
+  readonly distributeSelection = (): boolean => false;
+  readonly autoArrange = (): boolean => false;
+  readonly setSelectedEdgeLabel = (): boolean => false;
+  readonly setSelectedEdgeDirection = (): boolean => false;
 }
 
 function node(id: string, x: number, y: number, width: number = 200, height: number = 100): CanvasTextNode {

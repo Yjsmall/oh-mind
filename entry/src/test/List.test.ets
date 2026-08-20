@@ -16,9 +16,11 @@
 import localUnitTest from './LocalUnit.test';
 import canvasJsonCodecTest from './CanvasJsonCodec.test';
 import freeCanvasGeometryTest from './FreeCanvasGeometry.test';
+import canvasEditingGeometryTest from './CanvasEditingGeometry.test';
 
 export default function testsuite() {
   localUnitTest();
   canvasJsonCodecTest();
   freeCanvasGeometryTest();
+  canvasEditingGeometryTest();
 }

@@ -2,7 +2,7 @@
 
 `@ohos/mind-elixir` provides the JSON Canvas core and ArkUI V2 free-canvas component used by CardNote. Version 2 is an incompatible redesign: the former tree-shaped `MindElixir`, `MindElixirCore`, and `NodeObj` APIs have been removed.
 
-`FreeCanvas` renders edges in a Canvas layer and positions native ArkUI node content above it. It supports selection, multi-selection, marquee selection, node dragging, eight resize handles, canvas panning, pinch and wheel zoom, fit-to-content, viewport reset, and arrow-key nudging. Gesture drafts remain inside the component; the host receives one candidate snapshot when an operation completes.
+`FreeCanvas` renders edges in a Canvas layer and positions native ArkUI node content above it. It supports selection, multi-selection, marquee selection, node dragging, eight resize handles, canvas panning, pinch and wheel zoom, fit-to-content, viewport reset, and arrow-key nudging. Four-side anchors create edges; selected edges support labels, four direction modes, deletion, and endpoint reconnection. Copy, delete, undo, redo, alignment, row/column arrangement, equal distribution, and explicit deterministic auto-arrange are available through the controller. Gesture drafts remain inside the component; the host receives one candidate snapshot when an operation completes.
 
 ## Data Contract
 
@@ -89,7 +89,9 @@ struct MindMapView {
 }
 ```
 
-The controller exposes `fitContent`, `resetViewport`, `setInteractionMode('select' | 'pan')`, and `clearSelection`. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
+The controller exposes viewport and selection commands plus `undo`, `redo`, `copySelection`, `deleteSelection`, `alignSelection`, `arrangeSelection`, `distributeSelection`, `autoArrange`, `setSelectedEdgeLabel`, and `setSelectedEdgeDirection`. `canUndo` and `canRedo` report the component session state. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
+
+Undo history is bounded and session-only. A completed drag, resize, viewport gesture, edge operation, copy/delete, or layout command creates at most one history item. Ordinary snapshot loading never invokes auto-arrange; only an explicit `autoArrange` command changes the layout.
 
 ## Validation
 

@@ -56,32 +56,91 @@ struct Index {
 
   build() {
     Column() {
-      Row({ space: 8 }) {
-        Button('Select')
-          .id('toolbar-select')
-          .type(ButtonType.Normal)
-          .backgroundColor(this.mode === 'select' ? '#FF146C94' : '#FFE5E9ED')
-          .fontColor(this.mode === 'select' ? Color.White : '#FF20252B')
-          .onClick((): void => this.setMode('select'))
-        Button('Pan')
-          .id('toolbar-pan')
-          .type(ButtonType.Normal)
-          .backgroundColor(this.mode === 'pan' ? '#FF146C94' : '#FFE5E9ED')
-          .fontColor(this.mode === 'pan' ? Color.White : '#FF20252B')
-          .onClick((): void => this.setMode('pan'))
-        Blank()
-        Button('Fit')
-          .id('toolbar-fit')
-          .type(ButtonType.Normal)
-          .onClick((): void => this.canvasController.fitContent())
-        Button('100%')
-          .id('toolbar-reset')
-          .type(ButtonType.Normal)
-          .onClick((): void => this.canvasController.resetViewport())
+      Scroll() {
+        Row({ space: 8 }) {
+          Button('Select')
+            .id('toolbar-select')
+            .type(ButtonType.Normal)
+            .backgroundColor(this.mode === 'select' ? '#FF146C94' : '#FFE5E9ED')
+            .fontColor(this.mode === 'select' ? Color.White : '#FF20252B')
+            .onClick((): void => this.setMode('select'))
+          Button('Pan')
+            .id('toolbar-pan')
+            .type(ButtonType.Normal)
+            .backgroundColor(this.mode === 'pan' ? '#FF146C94' : '#FFE5E9ED')
+            .fontColor(this.mode === 'pan' ? Color.White : '#FF20252B')
+            .onClick((): void => this.setMode('pan'))
+          Button('Undo')
+            .id('toolbar-undo')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.undo();
+            })
+          Button('Redo')
+            .id('toolbar-redo')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.redo();
+            })
+          Button('Copy')
+            .id('toolbar-copy')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.copySelection();
+            })
+          Button('Delete')
+            .id('toolbar-delete')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.deleteSelection();
+            })
+          Button('Align L')
+            .id('toolbar-align-left')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.alignSelection('left');
+            })
+          Button('Row')
+            .id('toolbar-row')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.arrangeSelection('row');
+            })
+          Button('Column')
+            .id('toolbar-column')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.arrangeSelection('column');
+            })
+          Button('Space H')
+            .id('toolbar-distribute-horizontal')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.distributeSelection('horizontal');
+            })
+          Button('Auto')
+            .id('toolbar-auto')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.autoArrange();
+            })
+          Button('Fit')
+            .id('toolbar-fit')
+            .type(ButtonType.Normal)
+            .onClick((): void => this.canvasController.fitContent())
+          Button('100%')
+            .id('toolbar-reset')
+            .type(ButtonType.Normal)
+            .onClick((): void => this.canvasController.resetViewport())
+        }
+        .height(56)
+        .padding({ left: 12, right: 12 })
       }
+      .id('main-toolbar')
       .width('100%')
       .height(56)
-      .padding({ left: 12, right: 12 })
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
       .backgroundColor(Color.White)
 
       FreeCanvas({

@@ -2,11 +2,17 @@ import { KeyCode } from '@kit.InputKit';
 import {
   CanvasDocument,
   CanvasTextNode,
+  CanvasEdge,
+  CanvasEdgeEnd,
+  CanvasSide,
   CanvasViewport,
   cloneCanvasDocument,
+  resolveCanvasEdgeFromEnd,
   resolveCanvasEdgeToEnd
 } from '../model/CanvasModel';
 import { serializeCanvasJson } from '../codec/CanvasJsonCodec';
+import { applyCanvasCommand } from '../commands/CanvasCommand';
+import { CanvasController } from '../controller/CanvasController';
 import {
   CanvasNodePosition,
   CanvasPoint,
@@ -27,8 +33,23 @@ import {
   zoomCanvasViewportAt
 } from '../geometry/FreeCanvasGeometry';
 import {
+  CanvasAlignment,
+  CanvasArrangement,
+  CanvasConnectionTarget,
+  CanvasDistribution,
+  alignCanvasNodes,
+  arrangeCanvasNodes,
+  autoArrangeCanvasNodes,
+  copyCanvasSelection,
+  deleteCanvasSelection,
+  distributeCanvasNodes,
+  findCanvasConnectionTarget,
+  findCanvasEdgeAt
+} from '../geometry/CanvasEditingGeometry';
+import {
   FreeCanvasController,
   FreeCanvasControllerBinding,
+  FreeCanvasEdgeDirection,
   FreeCanvasInteractionMode
 } from '../controller/FreeCanvasController';
 
@@ -41,14 +62,33 @@ const SELECTED_NODE_BORDER: string = '#FF146C94';
 const EDGE_COLOR: string = '#FF68717D';
 const MARQUEE_FILL: string = '#18146C94';
 const MARQUEE_BORDER: string = '#FF146C94';
+const SELECTED_EDGE_COLOR: string = '#FFB54708';
+const CONNECTION_DRAFT_COLOR: string = '#FF146C94';
+const ANCHOR_SIZE: number = 14;
+const ANCHOR_HALF: number = ANCHOR_SIZE / 2;
 const EMPTY_DOCUMENT: CanvasDocument = { nodes: [], edges: [] };
 
-export type FreeCanvasChangeReason = 'viewport' | 'nodeMove' | 'nodeResize' | 'keyboardNudge';
+export type FreeCanvasChangeReason =
+  'viewport' | 'nodeMove' | 'nodeResize' | 'keyboardNudge' |
+  'edgeAdd' | 'edgeUpdate' | 'edgeDelete' | 'edgeReconnect' |
+  'copy' | 'delete' | 'align' | 'arrange' | 'distribute' | 'autoArrange' |
+  'undo' | 'redo';
 
 export interface FreeCanvasChangeEvent {
   readonly reason: FreeCanvasChangeReason;
   readonly document: CanvasDocument;
   readonly selectedNodeIds: ReadonlyArray<string>;
+  readonly selectedEdgeId?: string;
+}
+
+interface CanvasConnectionDraft {
+  readonly fixedPoint: CanvasPoint;
+  readonly startMovingPoint: CanvasPoint;
+  readonly movingPoint: CanvasPoint;
+  readonly sourceNodeId: string;
+  readonly sourceSide: CanvasSide;
+  readonly reconnectEdgeId?: string;
+  readonly reconnectEnd?: 'from' | 'to';
 }
 
 class DefaultFreeCanvasNodeContext {
@@ -88,6 +128,25 @@ function nodeBackground(color: string | undefined): string {
   }
 }
 
+function edgeStroke(color: string | undefined): string {
+  switch (color) {
+    case '1':
+      return '#FFE93147';
+    case '2':
+      return '#FFEC7500';
+    case '3':
+      return '#FFB88A00';
+    case '4':
+      return '#FF0E8A4B';
+    case '5':
+      return '#FF146C94';
+    case '6':
+      return '#FF7857B8';
+    default:
+      return color ?? EDGE_COLOR;
+  }
+}
+
 @ComponentV2
 export struct FreeCanvas {
   @Require @Param document: CanvasDocument = EMPTY_DOCUMENT;
@@ -100,8 +159,12 @@ export struct FreeCanvas {
   @Local private draftDocument: CanvasDocument = EMPTY_DOCUMENT;
   @Local private selectedNodeIds: string[] = [];
   @Local private primaryNodeId: string = '';
+  @Local private selectedEdgeId: string = '';
+  @Local private edgeLabelDraft: string = '';
+  @Local private edgeLabelEditing: boolean = false;
   @Local private interactionMode: FreeCanvasInteractionMode = 'select';
   @Local private marqueeRect: CanvasRect | undefined = undefined;
+  @Local private connectionDraft: CanvasConnectionDraft | undefined = undefined;
   @Local private renderRevision: number = 0;
   @Local private containerWidth: number = 0;
   @Local private containerHeight: number = 0;
@@ -113,12 +176,33 @@ export struct FreeCanvas {
   private marqueeStart: CanvasPoint = { x: 0, y: 0 };
   private dragStartPositions: CanvasNodePosition[] = [];
   private resizeStartNode: CanvasTextNode | undefined = undefined;
+  private nodeDragStartDocument: CanvasDocument | undefined = undefined;
+  private resizeStartDocument: CanvasDocument | undefined = undefined;
+  private panStartDocument: CanvasDocument | undefined = undefined;
+  private pinchStartDocument: CanvasDocument | undefined = undefined;
+  private axisStartDocument: CanvasDocument | undefined = undefined;
+  private historyController: CanvasController = new CanvasController();
+  private copySequence: number = 0;
+  private edgeSequence: number = 0;
   private axisChanged: boolean = false;
   private readonly controllerBinding: FreeCanvasControllerBinding = {
     fitContent: (): void => this.fitContent(),
     resetViewport: (): void => this.resetViewport(),
     setInteractionMode: (mode: FreeCanvasInteractionMode): void => this.setInteractionMode(mode),
-    clearSelection: (): void => this.clearSelection()
+    clearSelection: (): void => this.clearSelection(),
+    canUndo: (): boolean => this.historyController.canUndo(),
+    canRedo: (): boolean => this.historyController.canRedo(),
+    undo: (): boolean => this.undo(),
+    redo: (): boolean => this.redo(),
+    copySelection: (): boolean => this.copySelection(),
+    deleteSelection: (): boolean => this.deleteSelection(),
+    alignSelection: (alignment: CanvasAlignment): boolean => this.alignSelection(alignment),
+    arrangeSelection: (arrangement: CanvasArrangement): boolean => this.arrangeSelection(arrangement),
+    distributeSelection: (distribution: CanvasDistribution): boolean => this.distributeSelection(distribution),
+    autoArrange: (): boolean => this.autoArrange(),
+    setSelectedEdgeLabel: (label: string): boolean => this.setSelectedEdgeLabel(label),
+    setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection): boolean =>
+      this.setSelectedEdgeDirection(direction)
   };
 
   aboutToAppear(): void {
@@ -147,10 +231,17 @@ export struct FreeCanvas {
     }
     this.inputSnapshotJson = json;
     this.draftDocument = cloneCanvasDocument(this.document);
+    this.historyController.replaceSnapshot(this.draftDocument);
     this.selectedNodeIds = this.selectedNodeIds.filter((nodeId: string): boolean =>
       this.draftDocument.nodes.some((node: CanvasTextNode): boolean => node.id === nodeId));
     if (!this.selectedNodeIds.includes(this.primaryNodeId)) {
       this.primaryNodeId = this.selectedNodeIds.length === 0 ? '' : this.selectedNodeIds[0];
+    }
+    if (!this.draftDocument.edges.some((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId)) {
+      this.selectedEdgeId = '';
+      this.edgeLabelDraft = '';
+    } else {
+      this.edgeLabelDraft = this.selectedEdge()?.label ?? '';
     }
     this.refresh();
   }
@@ -174,23 +265,25 @@ export struct FreeCanvas {
       width: this.containerWidth,
       height: this.containerHeight
     });
-    this.updateViewport(viewport);
-    this.emitChange('viewport');
+    this.commitCandidate(setDocumentCanvasViewport(this.draftDocument, viewport), 'viewport');
   }
 
   private resetViewport(): void {
-    this.updateViewport({ x: 0, y: 0, scale: 1 });
-    this.emitChange('viewport');
+    this.commitCandidate(setDocumentCanvasViewport(this.draftDocument, { x: 0, y: 0, scale: 1 }), 'viewport');
   }
 
   private setInteractionMode(mode: FreeCanvasInteractionMode): void {
     this.interactionMode = mode;
     this.marqueeRect = undefined;
+    this.connectionDraft = undefined;
   }
 
   private clearSelection(): void {
     this.selectedNodeIds = [];
     this.primaryNodeId = '';
+    this.selectedEdgeId = '';
+    this.edgeLabelDraft = '';
+    this.edgeLabelEditing = false;
   }
 
   private emitChange(reason: FreeCanvasChangeReason): void {
@@ -198,11 +291,195 @@ export struct FreeCanvas {
     this.onChangeComplete({
       reason,
       document: cloneCanvasDocument(this.draftDocument),
-      selectedNodeIds: this.selectedNodeIds.slice()
+      selectedNodeIds: this.selectedNodeIds.slice(),
+      selectedEdgeId: this.selectedEdgeId.length === 0 ? undefined : this.selectedEdgeId
     });
   }
 
+  private completeDraft(reason: FreeCanvasChangeReason, before: CanvasDocument | undefined): boolean {
+    if (before === undefined || serializeCanvasJson(before) === serializeCanvasJson(this.draftDocument)) {
+      return false;
+    }
+    this.historyController.commitSnapshot(this.draftDocument);
+    this.emitChange(reason);
+    return true;
+  }
+
+  private commitCandidate(candidate: CanvasDocument, reason: FreeCanvasChangeReason): boolean {
+    const before = cloneCanvasDocument(this.draftDocument);
+    if (serializeCanvasJson(before) === serializeCanvasJson(candidate)) {
+      return false;
+    }
+    this.draftDocument = this.historyController.commitSnapshot(candidate);
+    this.refresh();
+    this.emitChange(reason);
+    return true;
+  }
+
+  private filterSelection(): void {
+    this.selectedNodeIds = this.selectedNodeIds.filter((nodeId: string): boolean =>
+      this.draftDocument.nodes.some((node: CanvasTextNode): boolean => node.id === nodeId));
+    if (!this.selectedNodeIds.includes(this.primaryNodeId)) {
+      this.primaryNodeId = this.selectedNodeIds.length === 0 ? '' : this.selectedNodeIds[0];
+    }
+    if (!this.draftDocument.edges.some((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId)) {
+      this.selectedEdgeId = '';
+      this.edgeLabelDraft = '';
+    } else {
+      this.edgeLabelDraft = this.selectedEdge()?.label ?? '';
+    }
+  }
+
+  private undo(): boolean {
+    if (!this.historyController.undo()) {
+      return false;
+    }
+    this.draftDocument = this.historyController.getSnapshot();
+    this.filterSelection();
+    this.refresh();
+    this.emitChange('undo');
+    return true;
+  }
+
+  private redo(): boolean {
+    if (!this.historyController.redo()) {
+      return false;
+    }
+    this.draftDocument = this.historyController.getSnapshot();
+    this.filterSelection();
+    this.refresh();
+    this.emitChange('redo');
+    return true;
+  }
+
+  private copySelection(): boolean {
+    if (this.selectedNodeIds.length === 0) {
+      return false;
+    }
+    let namespace = '';
+    do {
+      this.copySequence++;
+      namespace = 'copy-' + this.copySequence;
+    } while (this.draftDocument.nodes.some((node: CanvasTextNode): boolean =>
+      this.selectedNodeIds.some((nodeId: string): boolean => node.id === nodeId + '-' + namespace)) ||
+      this.draftDocument.edges.some((existingEdge: CanvasEdge): boolean =>
+        this.draftDocument.edges.some((selectedEdge: CanvasEdge): boolean =>
+          this.selectedNodeIds.includes(selectedEdge.fromNode) && this.selectedNodeIds.includes(selectedEdge.toNode) &&
+          existingEdge.id === selectedEdge.id + '-' + namespace)));
+    const result = copyCanvasSelection(this.draftDocument, this.selectedNodeIds, namespace);
+    const previousSelection = this.selectedNodeIds.slice();
+    const previousPrimary = this.primaryNodeId;
+    this.selectedNodeIds = result.nodeIds.slice();
+    this.primaryNodeId = this.selectedNodeIds[this.selectedNodeIds.length - 1];
+    this.selectedEdgeId = '';
+    this.edgeLabelDraft = '';
+    const changed = this.commitCandidate(result.document, 'copy');
+    if (!changed) {
+      this.selectedNodeIds = previousSelection;
+      this.primaryNodeId = previousPrimary;
+    }
+    return changed;
+  }
+
+  private deleteSelection(): boolean {
+    if (this.selectedNodeIds.length === 0 && this.selectedEdgeId.length === 0) {
+      return false;
+    }
+    const reason: FreeCanvasChangeReason = this.selectedNodeIds.length === 0 ? 'edgeDelete' : 'delete';
+    const candidate = deleteCanvasSelection(this.draftDocument, this.selectedNodeIds,
+      this.selectedEdgeId.length === 0 ? undefined : this.selectedEdgeId);
+    const previousSelection = this.selectedNodeIds.slice();
+    const previousPrimary = this.primaryNodeId;
+    const previousEdge = this.selectedEdgeId;
+    this.clearSelection();
+    const changed = this.commitCandidate(candidate, reason);
+    if (!changed) {
+      this.selectedNodeIds = previousSelection;
+      this.primaryNodeId = previousPrimary;
+      this.selectedEdgeId = previousEdge;
+    }
+    return changed;
+  }
+
+  private alignSelection(alignment: CanvasAlignment): boolean {
+    return this.commitCandidate(alignCanvasNodes(this.draftDocument, this.selectedNodeIds, alignment), 'align');
+  }
+
+  private arrangeSelection(arrangement: CanvasArrangement): boolean {
+    return this.commitCandidate(arrangeCanvasNodes(this.draftDocument, this.selectedNodeIds, arrangement), 'arrange');
+  }
+
+  private distributeSelection(distribution: CanvasDistribution): boolean {
+    return this.commitCandidate(distributeCanvasNodes(this.draftDocument, this.selectedNodeIds, distribution),
+      'distribute');
+  }
+
+  private autoArrange(): boolean {
+    const nodeIds = this.selectedNodeIds.length === 0 ?
+      this.draftDocument.nodes.map((node: CanvasTextNode): string => node.id) : this.selectedNodeIds;
+    return this.commitCandidate(autoArrangeCanvasNodes(this.draftDocument, nodeIds), 'autoArrange');
+  }
+
+  private selectedEdge(): CanvasEdge | undefined {
+    return this.draftDocument.edges.find((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId);
+  }
+
+  private setSelectedEdgeLabel(label: string): boolean {
+    const edge = this.selectedEdge();
+    if (edge === undefined) {
+      return false;
+    }
+    return this.commitCandidate(applyCanvasCommand(this.draftDocument, {
+      kind: 'updateEdge',
+      edgeId: edge.id,
+      edge: {
+        id: edge.id,
+        fromNode: edge.fromNode,
+        fromSide: edge.fromSide,
+        fromEnd: edge.fromEnd,
+        toNode: edge.toNode,
+        toSide: edge.toSide,
+        toEnd: edge.toEnd,
+        label: label.length === 0 ? undefined : label,
+        color: edge.color
+      }
+    }), 'edgeUpdate');
+  }
+
+  private setSelectedEdgeDirection(direction: FreeCanvasEdgeDirection): boolean {
+    const edge = this.selectedEdge();
+    if (edge === undefined) {
+      return false;
+    }
+    let fromEnd: CanvasEdgeEnd = 'none';
+    let toEnd: CanvasEdgeEnd = 'arrow';
+    if (direction === 'reverse') {
+      fromEnd = 'arrow';
+      toEnd = 'none';
+    } else if (direction === 'none') {
+      toEnd = 'none';
+    } else if (direction === 'both') {
+      fromEnd = 'arrow';
+    }
+    return this.commitCandidate(applyCanvasCommand(this.draftDocument, {
+      kind: 'updateEdge',
+      edgeId: edge.id,
+      edge: {
+        id: edge.id,
+        fromNode: edge.fromNode,
+        fromSide: edge.fromSide,
+        fromEnd,
+        toNode: edge.toNode,
+        toSide: edge.toSide,
+        toEnd,
+        label: edge.label,
+        color: edge.color
+      }
+    }), 'edgeUpdate');
+  }
+
   private selectNode(nodeId: string, event: ClickEvent): void {
+    this.selectedEdgeId = '';
     const toggle = event.getModifierKeyState?.(['Ctrl']) === true ||
       event.getModifierKeyState?.(['Shift']) === true;
     if (toggle) {
@@ -222,6 +499,8 @@ export struct FreeCanvas {
   }
 
   private prepareNodeDrag(nodeId: string): void {
+    this.nodeDragStartDocument = cloneCanvasDocument(this.draftDocument);
+    this.selectedEdgeId = '';
     if (!this.selectedNodeIds.includes(nodeId)) {
       this.selectedNodeIds = [nodeId];
       this.primaryNodeId = nodeId;
@@ -245,20 +524,25 @@ export struct FreeCanvas {
       return;
     }
     this.dragStartPositions = [];
-    this.emitChange('nodeMove');
+    this.completeDraft('nodeMove', this.nodeDragStartDocument);
+    this.nodeDragStartDocument = undefined;
   }
 
   private cancelNodeDrag(): void {
     if (this.dragStartPositions.length === 0) {
       return;
     }
-    this.draftDocument = moveCanvasNodes(this.draftDocument, this.dragStartPositions, { x: 0, y: 0 });
+    if (this.nodeDragStartDocument !== undefined) {
+      this.draftDocument = this.nodeDragStartDocument;
+    }
     this.dragStartPositions = [];
+    this.nodeDragStartDocument = undefined;
     this.refresh();
   }
 
   private beginResize(node: CanvasTextNode): void {
     this.resizeStartNode = node;
+    this.resizeStartDocument = cloneCanvasDocument(this.draftDocument);
   }
 
   private updateResize(handle: CanvasResizeHandle, event: GestureEvent): void {
@@ -279,21 +563,27 @@ export struct FreeCanvas {
       return;
     }
     this.resizeStartNode = undefined;
-    this.emitChange('nodeResize');
+    this.completeDraft('nodeResize', this.resizeStartDocument);
+    this.resizeStartDocument = undefined;
   }
 
   private cancelResize(): void {
     if (this.resizeStartNode === undefined) {
       return;
     }
-    this.draftDocument = replaceCanvasNode(this.draftDocument, this.resizeStartNode);
+    if (this.resizeStartDocument !== undefined) {
+      this.draftDocument = this.resizeStartDocument;
+    }
     this.resizeStartNode = undefined;
+    this.resizeStartDocument = undefined;
     this.refresh();
   }
 
   private beginBackgroundPan(event: GestureEvent): void {
     this.panStartViewport = this.viewport();
+    this.panStartDocument = cloneCanvasDocument(this.draftDocument);
     if (this.interactionMode === 'select') {
+      this.selectedEdgeId = '';
       this.marqueeStart = screenToWorld({ x: event.fingerList[0].localX, y: event.fingerList[0].localY },
         this.panStartViewport);
       this.marqueeRect = { x: this.marqueeStart.x, y: this.marqueeStart.y, width: 0, height: 0 };
@@ -316,20 +606,26 @@ export struct FreeCanvas {
 
   private endBackgroundPan(): void {
     if (this.interactionMode === 'pan') {
-      this.emitChange('viewport');
+      this.completeDraft('viewport', this.panStartDocument);
     }
+    this.panStartDocument = undefined;
     this.marqueeRect = undefined;
   }
 
   private cancelBackgroundPan(): void {
     if (this.interactionMode === 'pan') {
-      this.updateViewport(this.panStartViewport);
+      if (this.panStartDocument !== undefined) {
+        this.draftDocument = this.panStartDocument;
+        this.refresh();
+      }
     }
+    this.panStartDocument = undefined;
     this.marqueeRect = undefined;
   }
 
   private beginPinch(): void {
     this.pinchStartViewport = this.viewport();
+    this.pinchStartDocument = cloneCanvasDocument(this.draftDocument);
   }
 
   private updatePinch(event: GestureEvent): void {
@@ -340,19 +636,28 @@ export struct FreeCanvas {
   }
 
   private endPinch(): void {
-    this.emitChange('viewport');
+    this.completeDraft('viewport', this.pinchStartDocument);
+    this.pinchStartDocument = undefined;
   }
 
   private cancelPinch(): void {
-    this.updateViewport(this.pinchStartViewport);
+    if (this.pinchStartDocument !== undefined) {
+      this.draftDocument = this.pinchStartDocument;
+      this.pinchStartDocument = undefined;
+      this.refresh();
+    }
   }
 
   private handleAxis(event: AxisEvent): void {
     if (event.action === AxisAction.BEGIN) {
       this.axisChanged = false;
+      this.axisStartDocument = cloneCanvasDocument(this.draftDocument);
       return;
     }
     if (event.action === AxisAction.UPDATE) {
+      if (this.axisStartDocument === undefined) {
+        this.axisStartDocument = cloneCanvasDocument(this.draftDocument);
+      }
       const viewport = this.viewport();
       const vertical = event.getVerticalAxisValue();
       if (vertical === 0) {
@@ -365,17 +670,44 @@ export struct FreeCanvas {
     }
     if (event.action === AxisAction.END && this.axisChanged) {
       this.axisChanged = false;
-      this.emitChange('viewport');
+      this.completeDraft('viewport', this.axisStartDocument);
+      this.axisStartDocument = undefined;
+      return;
+    }
+    if (event.action === AxisAction.CANCEL) {
+      if (this.axisStartDocument !== undefined) {
+        this.draftDocument = this.axisStartDocument;
+        this.refresh();
+      }
+      this.axisChanged = false;
+      this.axisStartDocument = undefined;
     }
   }
 
   private handleKey(event: KeyEvent): boolean {
-    if (event.type !== KeyType.Down || this.selectedNodeIds.length === 0) {
+    if (event.type !== KeyType.Down || this.edgeLabelEditing) {
+      return false;
+    }
+    const control = event.getModifierKeyState?.(['Ctrl']) === true;
+    const shift = event.getModifierKeyState?.(['Shift']) === true;
+    if (control && event.keyCode === KeyCode.KEYCODE_Z) {
+      return shift ? this.redo() : this.undo();
+    }
+    if (control && event.keyCode === KeyCode.KEYCODE_Y) {
+      return this.redo();
+    }
+    if (control && event.keyCode === KeyCode.KEYCODE_C) {
+      return this.copySelection();
+    }
+    if (event.keyCode === KeyCode.KEYCODE_DEL || event.keyCode === KeyCode.KEYCODE_FORWARD_DEL) {
+      return this.deleteSelection();
+    }
+    if (this.selectedNodeIds.length === 0) {
       return false;
     }
     let deltaX = 0;
     let deltaY = 0;
-    const distance: number = event.getModifierKeyState?.(['Shift']) === true ? 10 : 1;
+    const distance: number = shift ? 10 : 1;
     switch (event.keyCode) {
       case KeyCode.KEYCODE_DPAD_LEFT:
         deltaX = -distance;
@@ -395,14 +727,171 @@ export struct FreeCanvas {
     const positions = this.draftDocument.nodes
       .filter((node: CanvasTextNode): boolean => this.selectedNodeIds.includes(node.id))
       .map((node: CanvasTextNode): CanvasNodePosition => ({ id: node.id, x: node.x, y: node.y }));
-    this.draftDocument = moveCanvasNodes(this.draftDocument, positions, { x: deltaX, y: deltaY });
-    this.refresh();
-    this.emitChange('keyboardNudge');
-    return true;
+    return this.commitCandidate(moveCanvasNodes(this.draftDocument, positions, { x: deltaX, y: deltaY }),
+      'keyboardNudge');
   }
 
   private findNode(nodeId: string): CanvasTextNode | undefined {
     return this.draftDocument.nodes.find((node: CanvasTextNode): boolean => node.id === nodeId);
+  }
+
+  private createEdgeId(): string {
+    let id = '';
+    do {
+      this.edgeSequence++;
+      id = 'edge-' + this.edgeSequence;
+    } while (this.draftDocument.edges.some((edge: CanvasEdge): boolean => edge.id === id));
+    return id;
+  }
+
+  private edgeAnchorPoint(node: CanvasTextNode, side: CanvasSide): CanvasPoint {
+    return worldToScreen(getCanvasNodeAnchor(node, side, node), this.viewport());
+  }
+
+  private connectionHandlePoint(node: CanvasTextNode, side: CanvasSide): CanvasPoint {
+    const point = this.edgeAnchorPoint(node, side);
+    const offset = 20;
+    switch (side) {
+      case 'top':
+        return { x: point.x, y: point.y - offset };
+      case 'right':
+        return { x: point.x + offset, y: point.y };
+      case 'bottom':
+        return { x: point.x, y: point.y + offset };
+      case 'left':
+        return { x: point.x - offset, y: point.y };
+    }
+  }
+
+  private beginConnection(node: CanvasTextNode, side: CanvasSide): void {
+    this.connectionDraft = {
+      fixedPoint: this.edgeAnchorPoint(node, side),
+      startMovingPoint: this.connectionHandlePoint(node, side),
+      movingPoint: this.connectionHandlePoint(node, side),
+      sourceNodeId: node.id,
+      sourceSide: side
+    };
+    this.refresh();
+  }
+
+  private updateConnection(event: GestureEvent): void {
+    if (this.connectionDraft === undefined) {
+      return;
+    }
+    this.connectionDraft = {
+      fixedPoint: this.connectionDraft.fixedPoint,
+      startMovingPoint: this.connectionDraft.startMovingPoint,
+      movingPoint: {
+        x: this.connectionDraft.startMovingPoint.x + event.offsetX,
+        y: this.connectionDraft.startMovingPoint.y + event.offsetY
+      },
+      sourceNodeId: this.connectionDraft.sourceNodeId,
+      sourceSide: this.connectionDraft.sourceSide,
+      reconnectEdgeId: this.connectionDraft.reconnectEdgeId,
+      reconnectEnd: this.connectionDraft.reconnectEnd
+    };
+    this.refresh();
+  }
+
+  private endConnection(): void {
+    const draft = this.connectionDraft;
+    if (draft === undefined) {
+      return;
+    }
+    const target = findCanvasConnectionTarget(this.draftDocument, this.viewport(), draft.movingPoint,
+      draft.reconnectEdgeId === undefined ? draft.sourceNodeId : undefined);
+    this.connectionDraft = undefined;
+    if (target === undefined) {
+      this.refresh();
+      return;
+    }
+    if (draft.reconnectEdgeId !== undefined && draft.reconnectEnd !== undefined) {
+      this.finishReconnect(draft.reconnectEdgeId, draft.reconnectEnd, target);
+      return;
+    }
+    const edgeId = this.createEdgeId();
+    const edge: CanvasEdge = {
+      id: edgeId,
+      fromNode: draft.sourceNodeId,
+      fromSide: draft.sourceSide,
+      fromEnd: 'none',
+      toNode: target.nodeId,
+      toSide: target.side,
+      toEnd: 'arrow'
+    };
+    this.selectedNodeIds = [];
+    this.primaryNodeId = '';
+    this.selectedEdgeId = edgeId;
+    this.edgeLabelDraft = '';
+    this.commitCandidate(applyCanvasCommand(this.draftDocument, { kind: 'addEdge', edge }), 'edgeAdd');
+  }
+
+  private cancelConnection(): void {
+    this.connectionDraft = undefined;
+    this.refresh();
+  }
+
+  private beginReconnect(edge: CanvasEdge, end: 'from' | 'to'): void {
+    const fromNode = this.findNode(edge.fromNode);
+    const toNode = this.findNode(edge.toNode);
+    if (fromNode === undefined || toNode === undefined) {
+      return;
+    }
+    const from = worldToScreen(getCanvasNodeAnchor(fromNode, edge.fromSide, toNode), this.viewport());
+    const to = worldToScreen(getCanvasNodeAnchor(toNode, edge.toSide, fromNode), this.viewport());
+    this.connectionDraft = {
+      fixedPoint: end === 'from' ? to : from,
+      startMovingPoint: end === 'from' ? from : to,
+      movingPoint: end === 'from' ? from : to,
+      sourceNodeId: end === 'from' ? edge.fromNode : edge.toNode,
+      sourceSide: end === 'from' ? edge.fromSide ?? 'right' : edge.toSide ?? 'left',
+      reconnectEdgeId: edge.id,
+      reconnectEnd: end
+    };
+    this.refresh();
+  }
+
+  private finishReconnect(edgeId: string, end: 'from' | 'to', target: CanvasConnectionTarget): void {
+    const edge = this.draftDocument.edges.find((item: CanvasEdge): boolean => item.id === edgeId);
+    if (edge === undefined) {
+      this.refresh();
+      return;
+    }
+    const replacement: CanvasEdge = {
+      id: edge.id,
+      fromNode: end === 'from' ? target.nodeId : edge.fromNode,
+      fromSide: end === 'from' ? target.side : edge.fromSide,
+      fromEnd: edge.fromEnd,
+      toNode: end === 'to' ? target.nodeId : edge.toNode,
+      toSide: end === 'to' ? target.side : edge.toSide,
+      toEnd: edge.toEnd,
+      label: edge.label,
+      color: edge.color
+    };
+    const changed = this.commitCandidate(applyCanvasCommand(this.draftDocument, {
+      kind: 'updateEdge',
+      edgeId,
+      edge: replacement
+    }), 'edgeReconnect');
+    if (!changed) {
+      this.refresh();
+    }
+  }
+
+  private handleBackgroundClick(event: ClickEvent): void {
+    if (this.interactionMode !== 'select') {
+      return;
+    }
+    const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: event.x, y: event.y });
+    if (edge === undefined) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedNodeIds = [];
+    this.primaryNodeId = '';
+    this.selectedEdgeId = edge.id;
+    this.edgeLabelDraft = edge.label ?? '';
+    this.refresh();
   }
 
   private nodeScreenRect(node: CanvasTextNode): CanvasRect {
@@ -452,6 +941,10 @@ export struct FreeCanvas {
       }
       const from = worldToScreen(getCanvasNodeAnchor(fromNode, edge.fromSide, toNode), viewport);
       const to = worldToScreen(getCanvasNodeAnchor(toNode, edge.toSide, fromNode), viewport);
+      const color = edge.id === this.selectedEdgeId ? SELECTED_EDGE_COLOR : edgeStroke(edge.color);
+      this.context.strokeStyle = color;
+      this.context.fillStyle = color;
+      this.context.lineWidth = edge.id === this.selectedEdgeId ? 3 : 1.5;
       this.context.beginPath();
       this.context.moveTo(from.x, from.y);
       this.context.lineTo(to.x, to.y);
@@ -459,9 +952,22 @@ export struct FreeCanvas {
       if (resolveCanvasEdgeToEnd(edge) === 'arrow') {
         this.drawArrowHead(from, to);
       }
+      if (resolveCanvasEdgeFromEnd(edge) === 'arrow') {
+        this.drawArrowHead(to, from);
+      }
       if (edge.label !== undefined && edge.label.length > 0) {
         this.context.fillText(edge.label, (from.x + to.x) / 2 + 6, (from.y + to.y) / 2 - 6);
       }
+    }
+    if (this.connectionDraft !== undefined) {
+      this.context.strokeStyle = CONNECTION_DRAFT_COLOR;
+      this.context.fillStyle = CONNECTION_DRAFT_COLOR;
+      this.context.lineWidth = 2;
+      this.context.beginPath();
+      this.context.moveTo(this.connectionDraft.fixedPoint.x, this.connectionDraft.fixedPoint.y);
+      this.context.lineTo(this.connectionDraft.movingPoint.x, this.connectionDraft.movingPoint.y);
+      this.context.stroke();
+      this.drawArrowHead(this.connectionDraft.fixedPoint, this.connectionDraft.movingPoint);
     }
   }
 
@@ -549,6 +1055,159 @@ export struct FreeCanvas {
   }
 
   @Builder
+  private ConnectionAnchor(node: CanvasTextNode, side: CanvasSide) {
+    Circle()
+      .width(ANCHOR_SIZE)
+      .height(ANCHOR_SIZE)
+      .id('free-canvas-anchor-' + side)
+      .fill('#FFFFFFFF')
+      .stroke(SELECTED_NODE_BORDER)
+      .strokeWidth(2)
+      .position({
+        x: this.connectionHandlePoint(node, side).x - ANCHOR_HALF,
+        y: this.connectionHandlePoint(node, side).y - ANCHOR_HALF
+      })
+      .gesture(
+        PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
+          .onActionStart((): void => this.beginConnection(node, side))
+          .onActionUpdate((event: GestureEvent): void => this.updateConnection(event))
+          .onActionEnd((): void => this.endConnection())
+          .onActionCancel((): void => this.cancelConnection())
+      )
+  }
+
+  @Builder
+  private PrimaryConnectionAnchors() {
+    if (this.interactionMode === 'select' && this.primaryNodeId.length > 0) {
+      if (this.findNode(this.primaryNodeId) !== undefined) {
+        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'top')
+        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'right')
+        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'bottom')
+        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'left')
+      }
+    }
+  }
+
+  @Builder
+  private EdgeEndpointHandle(edge: CanvasEdge, end: 'from' | 'to') {
+    if (this.findNode(edge.fromNode) !== undefined && this.findNode(edge.toNode) !== undefined) {
+      Circle()
+        .width(ANCHOR_SIZE)
+        .height(ANCHOR_SIZE)
+        .id('free-canvas-edge-' + end)
+        .fill('#FFFFFFFF')
+        .stroke(SELECTED_EDGE_COLOR)
+        .strokeWidth(2)
+        .position({
+          x: (end === 'from' ?
+            worldToScreen(getCanvasNodeAnchor(this.findNode(edge.fromNode)!, edge.fromSide,
+              this.findNode(edge.toNode)!), this.viewport()).x :
+            worldToScreen(getCanvasNodeAnchor(this.findNode(edge.toNode)!, edge.toSide,
+              this.findNode(edge.fromNode)!), this.viewport()).x) - ANCHOR_HALF,
+          y: (end === 'from' ?
+            worldToScreen(getCanvasNodeAnchor(this.findNode(edge.fromNode)!, edge.fromSide,
+              this.findNode(edge.toNode)!), this.viewport()).y :
+            worldToScreen(getCanvasNodeAnchor(this.findNode(edge.toNode)!, edge.toSide,
+              this.findNode(edge.fromNode)!), this.viewport()).y) - ANCHOR_HALF
+        })
+        .gesture(
+          PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
+            .onActionStart((): void => this.beginReconnect(edge, end))
+            .onActionUpdate((event: GestureEvent): void => this.updateConnection(event))
+            .onActionEnd((): void => this.endConnection())
+            .onActionCancel((): void => this.cancelConnection())
+        )
+    }
+  }
+
+  @Builder
+  private SelectedEdgeEndpoints() {
+    if (this.selectedEdgeId.length > 0 && this.selectedEdge() !== undefined) {
+      this.EdgeEndpointHandle(this.selectedEdge()!, 'from')
+      this.EdgeEndpointHandle(this.selectedEdge()!, 'to')
+    }
+  }
+
+  @Builder
+  private SelectedEdgeToolbar() {
+    if (this.selectedEdgeId.length > 0) {
+      Scroll() {
+        Row({ space: 6 }) {
+          TextInput({ text: this.edgeLabelDraft, placeholder: 'Label' })
+            .id('free-canvas-edge-label')
+            .width(140)
+            .height(36)
+            .onFocus((): void => {
+              this.edgeLabelEditing = true;
+            })
+            .onBlur((): void => {
+              this.edgeLabelEditing = false;
+            })
+            .onChange((value: string): void => {
+              this.edgeLabelDraft = value;
+            })
+          Button('Save')
+            .id('free-canvas-edge-label-save')
+            .type(ButtonType.Normal)
+            .height(36)
+            .onClick((): void => {
+              this.setSelectedEdgeLabel(this.edgeLabelDraft);
+            })
+          Button('->')
+            .id('free-canvas-edge-forward')
+            .type(ButtonType.Normal)
+            .width(44)
+            .height(36)
+            .onClick((): void => {
+              this.setSelectedEdgeDirection('forward');
+            })
+          Button('<-')
+            .id('free-canvas-edge-reverse')
+            .type(ButtonType.Normal)
+            .width(44)
+            .height(36)
+            .onClick((): void => {
+              this.setSelectedEdgeDirection('reverse');
+            })
+          Button('--')
+            .id('free-canvas-edge-none')
+            .type(ButtonType.Normal)
+            .width(44)
+            .height(36)
+            .onClick((): void => {
+              this.setSelectedEdgeDirection('none');
+            })
+          Button('<->')
+            .id('free-canvas-edge-both')
+            .type(ButtonType.Normal)
+            .width(52)
+            .height(36)
+            .onClick((): void => {
+              this.setSelectedEdgeDirection('both');
+            })
+          Button('Delete')
+            .id('free-canvas-edge-delete')
+            .type(ButtonType.Normal)
+            .height(36)
+            .fontColor('#FFC01C28')
+            .onClick((): void => {
+              this.deleteSelection();
+            })
+        }
+        .height(48)
+        .padding({ left: 8, right: 8 })
+      }
+      .width('100%')
+      .height(48)
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .backgroundColor('#F7FFFFFF')
+      .border({ width: { bottom: 1 }, color: '#FFD7DCE2' })
+      .position({ x: 0, y: 0 })
+    }
+  }
+
+  @Builder
   private Marquee() {
     if (this.marqueeRect !== undefined) {
       Rect()
@@ -574,7 +1233,10 @@ export struct FreeCanvas {
       }, (node: CanvasTextNode): string => node.id)
 
       this.PrimaryResizeHandles()
+      this.PrimaryConnectionAnchors()
+      this.SelectedEdgeEndpoints()
       this.Marquee()
+      this.SelectedEdgeToolbar()
     }
     .width('100%')
     .height('100%')
@@ -583,7 +1245,7 @@ export struct FreeCanvas {
     .backgroundColor('#FFF5F7F9')
     .focusable(true)
     .focusOnTouch(true)
-    .onClick((): void => this.clearSelection())
+    .onClick((event: ClickEvent): void => this.handleBackgroundClick(event))
     .onKeyEvent((event: KeyEvent): boolean => this.handleKey(event))
     .onAxisEvent((event?: AxisEvent): void => {
       if (event !== undefined) {
