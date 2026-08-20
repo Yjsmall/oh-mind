@@ -5,13 +5,11 @@ import {
 } from '../geometry/CanvasEditingGeometry';
 import { CanvasNodeLayerAction } from '../editing/CanvasNodeEditing';
 
-export type FreeCanvasInteractionMode = 'select' | 'pan';
 export type FreeCanvasEdgeDirection = 'forward' | 'reverse' | 'none' | 'both';
 
 export interface FreeCanvasControllerBinding {
   readonly fitContent: () => void;
   readonly resetViewport: () => void;
-  readonly setInteractionMode: (mode: FreeCanvasInteractionMode) => void;
   readonly clearSelection: () => void;
   readonly canUndo: () => boolean;
   readonly canRedo: () => boolean;
@@ -31,6 +29,9 @@ export interface FreeCanvasControllerBinding {
   readonly reorderSelectedNode: (action: CanvasNodeLayerAction) => boolean;
   readonly activateSelectedNode: () => boolean;
   readonly retrySave: () => boolean;
+  readonly flushPendingChange: () => boolean;
+  readonly discardPendingChange: () => void;
+  readonly setMultiSelectEnabled: (enabled: boolean) => void;
   readonly setSelectedEdgeLabel: (label: string) => boolean;
   readonly setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection) => boolean;
   readonly setSelectedEdgeColor: (color?: string) => boolean;
@@ -55,10 +56,6 @@ export class FreeCanvasController {
 
   resetViewport(): void {
     this.binding?.resetViewport();
-  }
-
-  setInteractionMode(mode: FreeCanvasInteractionMode): void {
-    this.binding?.setInteractionMode(mode);
   }
 
   clearSelection(): void {
@@ -135,6 +132,21 @@ export class FreeCanvasController {
 
   retrySave(): boolean {
     return this.binding?.retrySave() ?? false;
+  }
+
+  /** Publishes the latest pending completed change immediately (e.g. before switching documents). */
+  flushPendingChange(): boolean {
+    return this.binding?.flushPendingChange() ?? false;
+  }
+
+  /** Drops the local unsaved candidate (e.g. when the current document is deleted). */
+  discardPendingChange(): void {
+    this.binding?.discardPendingChange();
+  }
+
+  /** Enables or disables additive multi-select semantics for taps and marquees. */
+  setMultiSelectEnabled(enabled: boolean): void {
+    this.binding?.setMultiSelectEnabled(enabled);
   }
 
   setSelectedEdgeLabel(label: string): boolean {

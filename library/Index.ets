@@ -149,11 +149,27 @@ export type {
 export { FreeCanvasController } from './src/main/ets/controller/FreeCanvasController';
 export type {
   FreeCanvasControllerBinding,
-  FreeCanvasEdgeDirection,
-  FreeCanvasInteractionMode
+  FreeCanvasEdgeDirection
 } from './src/main/ets/controller/FreeCanvasController';
 export { FreeCanvas } from './src/main/ets/components/FreeCanvas';
+export { FreeCanvasNodeCard } from './src/main/ets/components/FreeCanvasNodeCard';
+export { FreeCanvasGestureMachine } from './src/main/ets/gesture/FreeCanvasGestureMachine';
+export {
+  FREE_CANVAS_CARD_DRAG_THRESHOLD_VP,
+  FREE_CANVAS_MARQUEE_JITTER_VP,
+  FREE_CANVAS_MARQUEE_LONG_PRESS_MS,
+  FREE_CANVAS_PAN_THRESHOLD_VP,
+  primaryNodeForSelection,
+  selectNodesForMarquee,
+  selectNodesForTap
+} from './src/main/ets/gesture/FreeCanvasGestureMachine';
+export type {
+  FreeCanvasGesturePhase,
+  FreeCanvasGestureSource
+} from './src/main/ets/gesture/FreeCanvasGestureMachine';
+export { FreeCanvasChangeDebouncer, FREE_CANVAS_IDLE_SAVE_MS } from './src/main/ets/controller/FreeCanvasChangeDebouncer';
 export type {
   FreeCanvasChangeEvent,
-  FreeCanvasChangeReason
-} from './src/main/ets/components/FreeCanvas';
+  FreeCanvasChangeReason,
+  FreeCanvasPendingChange
+} from './src/main/ets/model/FreeCanvasEventTypes';

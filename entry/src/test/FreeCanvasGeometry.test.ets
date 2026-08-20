@@ -6,7 +6,6 @@ import {
   CanvasViewport,
   FreeCanvasController,
   FreeCanvasControllerBinding,
-  FreeCanvasInteractionMode,
   fitCanvasViewport,
   getCanvasNodeAnchor,
   moveCanvasNodes,
@@ -25,16 +24,15 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   fitCount: number = 0;
   resetCount: number = 0;
   clearCount: number = 0;
-  mode: FreeCanvasInteractionMode = 'select';
+  flushCount: number = 0;
+  discardCount: number = 0;
+  multiSelect?: boolean;
 
   readonly fitContent = (): void => {
     this.fitCount++;
   };
   readonly resetViewport = (): void => {
     this.resetCount++;
-  };
-  readonly setInteractionMode = (mode: FreeCanvasInteractionMode): void => {
-    this.mode = mode;
   };
   readonly clearSelection = (): void => {
     this.clearCount++;
@@ -57,6 +55,16 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   readonly reorderSelectedNode = (): boolean => false;
   readonly activateSelectedNode = (): boolean => false;
   readonly retrySave = (): boolean => false;
+  readonly flushPendingChange = (): boolean => {
+    this.flushCount++;
+    return true;
+  };
+  readonly discardPendingChange = (): void => {
+    this.discardCount++;
+  };
+  readonly setMultiSelectEnabled = (enabled: boolean): void => {
+    this.multiSelect = enabled;
+  };
   readonly setSelectedEdgeLabel = (): boolean => false;
   readonly setSelectedEdgeDirection = (): boolean => false;
   readonly setSelectedEdgeColor = (): boolean => false;
@@ -174,12 +182,16 @@ export default function freeCanvasGeometryTest() {
       controller.bind(probe);
       controller.fitContent();
       controller.resetViewport();
-      controller.setInteractionMode('pan');
+      controller.setMultiSelectEnabled(true);
       controller.clearSelection();
+      controller.flushPendingChange();
+      controller.discardPendingChange();
       expect(probe.fitCount).assertEqual(1);
       expect(probe.resetCount).assertEqual(1);
-      expect(probe.mode).assertEqual('pan');
+      expect(probe.multiSelect).assertEqual(true);
       expect(probe.clearCount).assertEqual(1);
+      expect(probe.flushCount).assertEqual(1);
+      expect(probe.discardCount).assertEqual(1);
       controller.unbind(probe);
       controller.fitContent();
       expect(probe.fitCount).assertEqual(1);

@@ -4,7 +4,6 @@ import {
   FreeCanvas,
   FreeCanvasChangeEvent,
   FreeCanvasController,
-  FreeCanvasInteractionMode,
   FreeCanvasSaveResult
 } from '@ohos/mind-elixir';
 
@@ -43,16 +42,18 @@ const DEMO_NODE_BUILDER: WrappedBuilder<[CanvasTextNode, Object]> = wrapBuilder(
 @ComponentV2
 struct Index {
   @Local private document: CanvasDocument = DEMO_DOCUMENT;
-  @Local private mode: FreeCanvasInteractionMode = 'select';
+  @Local private multiSelect: boolean = false;
   @Local private revision: number = 0;
   @Local private saveResult: FreeCanvasSaveResult | undefined = undefined;
   @Local private activatedNodeId: string = '';
   @Local private failNextSave: boolean = false;
+  @Local private flushCount: number = 0;
+  @Local private discardCount: number = 0;
   private readonly canvasController: FreeCanvasController = new FreeCanvasController();
 
-  private setMode(mode: FreeCanvasInteractionMode): void {
-    this.mode = mode;
-    this.canvasController.setInteractionMode(mode);
+  private setMultiSelect(enabled: boolean): void {
+    this.multiSelect = enabled;
+    this.canvasController.setMultiSelectEnabled(enabled);
   }
 
   private acceptChange(event: FreeCanvasChangeEvent): void {
@@ -70,18 +71,26 @@ struct Index {
     Column() {
       Scroll() {
         Row({ space: 8 }) {
-          Button('Select')
-            .id('toolbar-select')
+          Button('Multi')
+            .id('toolbar-multiselect')
             .type(ButtonType.Normal)
-            .backgroundColor(this.mode === 'select' ? '#FF146C94' : '#FFE5E9ED')
-            .fontColor(this.mode === 'select' ? Color.White : '#FF20252B')
-            .onClick((): void => this.setMode('select'))
-          Button('Pan')
-            .id('toolbar-pan')
+            .backgroundColor(this.multiSelect ? '#FF146C94' : '#FFE5E9ED')
+            .fontColor(this.multiSelect ? Color.White : '#FF20252B')
+            .onClick((): void => this.setMultiSelect(!this.multiSelect))
+          Button('Flush')
+            .id('toolbar-flush')
             .type(ButtonType.Normal)
-            .backgroundColor(this.mode === 'pan' ? '#FF146C94' : '#FFE5E9ED')
-            .fontColor(this.mode === 'pan' ? Color.White : '#FF20252B')
-            .onClick((): void => this.setMode('pan'))
+            .onClick((): void => {
+              this.canvasController.flushPendingChange();
+              this.flushCount++;
+            })
+          Button('Discard')
+            .id('toolbar-discard')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.discardPendingChange();
+              this.discardCount++;
+            })
           Button('Undo')
             .id('toolbar-undo')
             .type(ButtonType.Normal)
@@ -99,12 +108,6 @@ struct Index {
             .type(ButtonType.Normal)
             .onClick((): void => {
               this.canvasController.addTextNode('');
-            })
-          Button('Edit')
-            .id('toolbar-edit')
-            .type(ButtonType.Normal)
-            .onClick((): void => {
-              this.canvasController.editSelectedNode();
             })
           Button('Open')
             .id('toolbar-open')
@@ -189,6 +192,14 @@ struct Index {
           .fontSize(12)
           .fontColor('#FF5D6670')
       }
+
+      Text(`flush=${this.flushCount} discard=${this.discardCount}`)
+        .id('flush-discard-status')
+        .width('100%')
+        .height(24)
+        .padding({ left: 12, right: 12 })
+        .fontSize(11)
+        .fontColor('#FF9AA3AD')
 
       FreeCanvas({
         document: this.document,

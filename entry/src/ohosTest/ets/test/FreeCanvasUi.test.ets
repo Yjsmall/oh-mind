@@ -13,9 +13,8 @@ async function component(driver: Driver, id: string): Promise<Component> {
 
 export default function freeCanvasUiTest() {
   describe('FreeCanvasUiTest', () => {
-    it('pansCanvasWithInjectedDrag', 0, async () => {
+    it('pansCanvasWithQuickEmptyDragWithoutModeButtons', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-pan')).click();
       const canvas = await component(driver, 'free-canvas');
       const node = await component(driver, 'free-canvas-node-source');
       const canvasBounds = await canvas.getBounds();
@@ -27,17 +26,21 @@ export default function freeCanvasUiTest() {
       expect(after.left > before.left).assertEqual(true);
     });
 
-    it('pansCanvasWhenGestureStartsOnNodeInPanMode', 0, async () => {
+    it('selectsNodeOnSingleTapAndDeselectsOnEmptyClick', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-pan')).click();
       let source = await component(driver, 'free-canvas-node-source');
-      let before = await source.getBounds();
-      await driver.drag((before.left + before.right) / 2, (before.top + before.bottom) / 2,
-        (before.left + before.right) / 2 + 40, (before.top + before.bottom) / 2 + 10, 600);
+      await source.click();
       await driver.delayMs(UI_SETTLE_MS);
-      source = await component(driver, 'free-canvas-node-source');
-      const after = await source.getBounds();
-      expect(after.left > before.left).assertEqual(true);
+      const toolbar = await component(driver, 'free-canvas-node-toolbar');
+      const toolbarBounds = await toolbar.getBounds();
+      expect(toolbarBounds.right - toolbarBounds.left > 0).assertEqual(true);
+
+      const canvas = await component(driver, 'free-canvas');
+      const canvasBounds = await canvas.getBounds();
+      await driver.click(canvasBounds.right - 20, canvasBounds.top + 20);
+      await driver.delayMs(UI_SETTLE_MS);
+      const tools = await driver.findComponents(ON.id('free-canvas-node-toolbar'));
+      expect(tools.length).assertEqual(0);
     });
 
     it('pinchesCanvasAroundItsCenter', 0, async () => {
@@ -51,23 +54,8 @@ export default function freeCanvasUiTest() {
       expect(after.right - after.left > before.right - before.left).assertEqual(true);
     });
 
-    it('marqueeSelectsNodesFromEmptyCanvas', 0, async () => {
-      const driver = Driver.create();
-      await (await component(driver, 'toolbar-fit')).click();
-      await (await component(driver, 'toolbar-select')).click();
-      const canvas = await component(driver, 'free-canvas');
-      const bounds = await canvas.getBounds();
-      await driver.click(bounds.right - 10, bounds.bottom - 10);
-      await driver.drag(bounds.right - 10, bounds.bottom - 10,
-        bounds.left + 10, bounds.top + 10, 600);
-      await driver.delayMs(UI_SETTLE_MS);
-      const resizeHandle = await component(driver, 'free-canvas-resize-se');
-      expect(await resizeHandle.isEnabled()).assertEqual(true);
-    });
-
     it('dragsSelectedNodeAndResizesItsCard', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-select')).click();
       let node = await component(driver, 'free-canvas-node-source');
       await node.click();
       let before = await node.getBounds();
@@ -90,8 +78,6 @@ export default function freeCanvasUiTest() {
 
     it('createsLabelsReconnectsAndDeletesEdge', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-fit')).click();
-      await (await component(driver, 'toolbar-select')).click();
       const source = await component(driver, 'free-canvas-node-source');
       const idea = await component(driver, 'free-canvas-node-idea');
       await source.click();
@@ -129,29 +115,37 @@ export default function freeCanvasUiTest() {
     it('copiesSelectionAndRestoresItWithUndo', 0, async () => {
       const driver = Driver.create();
       await (await component(driver, 'free-canvas-node-source')).click();
-      const toolbar = await component(driver, 'main-toolbar');
-      const copyButton = await toolbar.scrollSearch(ON.id('toolbar-copy'));
-      await copyButton.click();
+      await driver.delayMs(UI_SETTLE_MS);
+      await (await component(driver, 'free-canvas-copy')).click();
       await driver.delayMs(UI_SETTLE_MS);
       expect((await component(driver, 'free-canvas-node-source-copy-1')) !== undefined).assertEqual(true);
-      const undoButton = await toolbar.scrollSearch(ON.id('toolbar-undo'));
-      await undoButton.click();
+      await (await component(driver, 'toolbar-undo')).click();
       await driver.delayMs(UI_SETTLE_MS);
       const copies = await driver.findComponents(ON.id('free-canvas-node-source-copy-1'));
       expect(copies.length).assertEqual(0);
     });
 
-    it('createsEditsStylesLayersAndActivatesTextNode', 0, async () => {
+    it('createsEditsStylesAndActivatesTextNode', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-select')).click();
-      const toolbar = await component(driver, 'main-toolbar');
-      await (await toolbar.scrollSearch(ON.id('toolbar-add'))).click();
-      const editor = await component(driver, 'free-canvas-node-editor');
+      await (await component(driver, 'toolbar-add')).click();
+      let editor = await component(driver, 'free-canvas-node-editor');
       await editor.inputText('# Device note');
       await (await component(driver, 'free-canvas-node-edit-save')).click();
       await driver.delayMs(UI_SETTLE_MS);
+
+      await (await component(driver, 'free-canvas-node-edit')).click();
+      editor = await component(driver, 'free-canvas-node-editor');
+      await editor.inputText('# Device note v2');
+      await (await component(driver, 'free-canvas-node-edit-save')).click();
+      await driver.delayMs(UI_SETTLE_MS);
       expect((await driver.findComponents(ON.id('free-canvas-node-editor'))).length).assertEqual(0);
+
+      await (await component(driver, 'free-canvas-node-color')).click();
+      await driver.delayMs(UI_SETTLE_MS);
       await (await component(driver, 'free-canvas-node-color-5')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      await (await component(driver, 'free-canvas-node-more')).click();
+      await driver.delayMs(UI_SETTLE_MS);
       await (await component(driver, 'free-canvas-node-top')).click();
       await (await component(driver, 'free-canvas-node-activate')).click();
       expect((await component(driver, 'node-activation-status')) !== undefined).assertEqual(true);
@@ -159,15 +153,43 @@ export default function freeCanvasUiTest() {
 
     it('retainsFailedDraftAndRetriesSave', 0, async () => {
       const driver = Driver.create();
-      await (await component(driver, 'toolbar-select')).click();
       await (await component(driver, 'free-canvas-node-source')).click();
-      const toolbar = await component(driver, 'main-toolbar');
-      await (await toolbar.scrollSearch(ON.id('toolbar-fail-next-save'))).click();
+      await (await component(driver, 'toolbar-fail-next-save')).click();
+      await (await component(driver, 'free-canvas-node-color')).click();
+      await driver.delayMs(UI_SETTLE_MS);
       await (await component(driver, 'free-canvas-node-color-4')).click();
       await driver.delayMs(UI_SETTLE_MS);
       await (await component(driver, 'free-canvas-save-retry')).click();
       await driver.delayMs(UI_SETTLE_MS);
       expect((await driver.findComponents(ON.id('free-canvas-save-retry'))).length).assertEqual(0);
+    });
+
+    it('multiSelectsMovesAndDeletesWholeSelection', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'toolbar-multiselect')).click();
+      await (await component(driver, 'free-canvas-node-source')).click();
+      await (await component(driver, 'free-canvas-node-idea')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      const toolbar = await component(driver, 'free-canvas-node-toolbar');
+      const toolbarBounds = await toolbar.getBounds();
+      expect(toolbarBounds.right - toolbarBounds.left > 0).assertEqual(true);
+
+      let source = await component(driver, 'free-canvas-node-source');
+      const bounds = await source.getBounds();
+      await driver.drag((bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2,
+        (bounds.left + bounds.right) / 2 + 40, (bounds.top + bounds.bottom) / 2 + 10, 600);
+      await driver.delayMs(UI_SETTLE_MS);
+      source = await component(driver, 'free-canvas-node-source');
+      const moved = await source.getBounds();
+      expect(moved.left > bounds.left).assertEqual(true);
+      const idea = await component(driver, 'free-canvas-node-idea');
+      const movedIdea = await idea.getBounds();
+      expect(movedIdea.left > bounds.left).assertEqual(true);
+
+      await (await component(driver, 'free-canvas-delete')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await driver.findComponents(ON.id('free-canvas-node-source'))).length).assertEqual(0);
+      expect((await driver.findComponents(ON.id('free-canvas-node-idea'))).length).assertEqual(0);
     });
   });
 }

@@ -19,6 +19,7 @@ import freeCanvasGeometryTest from './FreeCanvasGeometry.test';
 import canvasEditingGeometryTest from './CanvasEditingGeometry.test';
 import canvasNodeEditingTest from './CanvasNodeEditing.test';
 import freeCanvasSaveSessionTest from './FreeCanvasSaveSession.test';
+import freeCanvasGestureStateMachineTest from './FreeCanvasGestureStateMachine.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -27,4 +28,5 @@ export default function testsuite() {
   canvasEditingGeometryTest();
   canvasNodeEditingTest();
   freeCanvasSaveSessionTest();
+  freeCanvasGestureStateMachineTest();
 }
