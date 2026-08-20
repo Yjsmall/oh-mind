@@ -14,7 +14,11 @@
  */
 
 import abilityTest from './Ability.test';
+import freeCanvasInteractionTest from './FreeCanvasInteraction.test';
+import freeCanvasUiTest from './FreeCanvasUi.test';
 
 export default function testsuite() {
   abilityTest();
+  freeCanvasInteractionTest();
+  freeCanvasUiTest();
 }

@@ -8,7 +8,7 @@
     "HarmonyOS"
   ],
   "author": "ohos_tpc",
-  "description": "CardNote 原生自由画布的 JSON Canvas 核心模型、命令与历史控制器。",
+  "description": "CardNote 原生 ArkUI V2 自由画布、JSON Canvas 模型、命令与历史控制器。",
   "main": "Index.ets",
   "type": "module",
   "repository": "https://gitee.com/openharmony-tpc-incubate/ohos_mind_elixir",

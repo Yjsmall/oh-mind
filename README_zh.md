@@ -1,8 +1,8 @@
 # oh-mind Canvas Core
 
-`@ohos/mind-elixir` 当前提供 CardNote 原生自由画布的纯 ArkTS 核心。2.0 是不兼容重构，旧树状 `MindElixir`、`MindElixirCore` 和 `NodeObj` API 已删除。
+`@ohos/mind-elixir` 提供 CardNote 使用的 JSON Canvas 核心和 ArkUI V2 自由画布组件。2.0 是不兼容重构，旧树状 `MindElixir`、`MindElixirCore` 和 `NodeObj` API 已删除。
 
-当前 HAR 不包含 ArkUI 画布组件。`FreeCanvas` 和原生手势属于下一实施阶段。
+`FreeCanvas` 在 Canvas 层绘制连线，并在上层定位原生 ArkUI 节点内容。当前支持单选、多选、框选、节点拖拽、八向缩放、画布平移、双指和滚轮缩放、适应内容、视口复位与方向键微调。手势草稿留在组件内部，每个完整操作只向宿主发出一次候选快照。
 
 ## 数据契约
 
@@ -69,6 +69,28 @@ const json: string = serializeCanvasJson(snapshot);
 
 支持的命令包括 `addNode`、`updateNode`、`removeNode`、`reorderNode`、`addEdge`、`updateEdge`、`removeEdge`、`setViewport` 和 `clearViewport`。删除节点时会同时删除与其相连的边。
 
+### ArkUI 组件
+
+```typescript
+@ComponentV2
+struct MindMapView {
+  @Require @Param document: CanvasDocument;
+  private readonly canvasController = new FreeCanvasController();
+
+  build() {
+    FreeCanvas({
+      document: this.document,
+      controller: this.canvasController,
+      onChangeComplete: (event: FreeCanvasChangeEvent): void => {
+        // 把 event.document 提交到宿主持久化边界。
+      }
+    })
+  }
+}
+```
+
+控制器提供 `fitContent`、`resetViewport`、`setInteractionMode('select' | 'pan')` 和 `clearSelection`。宿主可通过 `nodeContentBuilder` 传入 `WrappedBuilder<[CanvasTextNode, Object]>`，使用原生 ArkUI 展示 Markdown/LaTeX；不传时使用纯文本回退。组件不访问持久化、PDF 状态、ArkWeb 或原生解析模块。
+
 ## 校验
 
 校验器会拒绝非法文档、未知字段、重复 ID、悬空边、非整数节点坐标、非正尺寸、非法锚点或端点、不支持的节点类型，以及非法 CardNote 视口扩展。`parseCanvasJson` 会把缺省的顶层 `nodes` 或 `edges` 归一化为空数组。
@@ -81,4 +103,6 @@ const json: string = serializeCanvasJson(snapshot);
 ohpm install
 hvigorw.bat --no-daemon --mode module -p module=entry@default -p coverage=false test
 hvigorw.bat --no-daemon --mode module -p module=library@default assembleHar
+hvigorw.bat --no-daemon --mode module -p module=entry@default assembleHap
+hvigorw.bat --no-daemon --mode module -p module=entry@ohosTest assembleHap
 ```

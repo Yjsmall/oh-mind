@@ -71,3 +71,43 @@ export type {
   CanvasControllerErrorCode,
   CanvasControllerOptions
 } from './src/main/ets/controller/CanvasController';
+export {
+  FREE_CANVAS_FIT_PADDING,
+  FREE_CANVAS_MAX_SCALE,
+  FREE_CANVAS_MIN_NODE_HEIGHT,
+  FREE_CANVAS_MIN_NODE_WIDTH,
+  FREE_CANVAS_MIN_SCALE,
+  clampCanvasScale,
+  fitCanvasViewport,
+  getCanvasContentBounds,
+  getCanvasNodeAnchor,
+  moveCanvasNodes,
+  nodeIntersectsCanvasRect,
+  normalizeCanvasRect,
+  panCanvasViewport,
+  replaceCanvasNode,
+  resizeCanvasNode,
+  resolveCanvasViewport,
+  screenToWorld,
+  selectNodesInCanvasRect,
+  setDocumentCanvasViewport,
+  worldToScreen,
+  zoomCanvasViewportAt
+} from './src/main/ets/geometry/FreeCanvasGeometry';
+export type {
+  CanvasNodePosition,
+  CanvasPoint,
+  CanvasRect,
+  CanvasResizeHandle,
+  CanvasSize
+} from './src/main/ets/geometry/FreeCanvasGeometry';
+export { FreeCanvasController } from './src/main/ets/controller/FreeCanvasController';
+export type {
+  FreeCanvasControllerBinding,
+  FreeCanvasInteractionMode
+} from './src/main/ets/controller/FreeCanvasController';
+export { FreeCanvas } from './src/main/ets/components/FreeCanvas';
+export type {
+  FreeCanvasChangeEvent,
+  FreeCanvasChangeReason
+} from './src/main/ets/components/FreeCanvas';

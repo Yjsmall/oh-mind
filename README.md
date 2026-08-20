@@ -1,8 +1,8 @@
 # oh-mind Canvas Core
 
-`@ohos/mind-elixir` currently provides the pure ArkTS core for CardNote's native free canvas. Version 2 is an incompatible redesign: the former tree-shaped `MindElixir`, `MindElixirCore`, and `NodeObj` APIs have been removed.
+`@ohos/mind-elixir` provides the JSON Canvas core and ArkUI V2 free-canvas component used by CardNote. Version 2 is an incompatible redesign: the former tree-shaped `MindElixir`, `MindElixirCore`, and `NodeObj` APIs have been removed.
 
-The current HAR contains no ArkUI canvas component. `FreeCanvas` and native gestures belong to the next implementation phase.
+`FreeCanvas` renders edges in a Canvas layer and positions native ArkUI node content above it. It supports selection, multi-selection, marquee selection, node dragging, eight resize handles, canvas panning, pinch and wheel zoom, fit-to-content, viewport reset, and arrow-key nudging. Gesture drafts remain inside the component; the host receives one candidate snapshot when an operation completes.
 
 ## Data Contract
 
@@ -69,6 +69,28 @@ const json: string = serializeCanvasJson(snapshot);
 
 Supported commands are `addNode`, `updateNode`, `removeNode`, `reorderNode`, `addEdge`, `updateEdge`, `removeEdge`, `setViewport`, and `clearViewport`. Removing a node also removes its connected edges.
 
+### ArkUI component
+
+```typescript
+@ComponentV2
+struct MindMapView {
+  @Require @Param document: CanvasDocument;
+  private readonly canvasController = new FreeCanvasController();
+
+  build() {
+    FreeCanvas({
+      document: this.document,
+      controller: this.canvasController,
+      onChangeComplete: (event: FreeCanvasChangeEvent): void => {
+        // Submit event.document to the host persistence boundary.
+      }
+    })
+  }
+}
+```
+
+The controller exposes `fitContent`, `resetViewport`, `setInteractionMode('select' | 'pan')`, and `clearSelection`. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
+
 ## Validation
 
 The validator rejects malformed documents, unknown fields, duplicate IDs, dangling edges, non-integer node coordinates, non-positive sizes, invalid sides or endpoints, unsupported node types, and invalid CardNote viewport extensions. Missing top-level `nodes` or `edges` are normalized to empty arrays by `parseCanvasJson`.
@@ -81,4 +103,6 @@ Use HarmonyOS SDK `6.1.1(24)` with compatible and target SDK `6.1.0(23)`. `DEVEC
 ohpm install
 hvigorw.bat --no-daemon --mode module -p module=entry@default -p coverage=false test
 hvigorw.bat --no-daemon --mode module -p module=library@default assembleHar
+hvigorw.bat --no-daemon --mode module -p module=entry@default assembleHap
+hvigorw.bat --no-daemon --mode module -p module=entry@ohosTest assembleHap
 ```
