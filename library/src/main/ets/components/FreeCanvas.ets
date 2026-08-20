@@ -1749,12 +1749,12 @@ export struct FreeCanvas {
       .stroke(SELECTED_NODE_BORDER)
       .strokeWidth(2)
       .position({
-        x: this.handleScreenPoint(node, handle).x - RESIZE_HANDLE_HALF,
-        y: this.handleScreenPoint(node, handle).y - RESIZE_HANDLE_HALF
+        x: this.handleScreenPoint(this.latestNode(node), handle).x - RESIZE_HANDLE_HALF,
+        y: this.handleScreenPoint(this.latestNode(node), handle).y - RESIZE_HANDLE_HALF
       })
       .gesture(
         PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
-          .onActionStart((): void => this.beginResize(node))
+          .onActionStart((): void => this.beginResize(this.latestNode(node)))
           .onActionUpdate((event: GestureEvent): void => this.updateResize(handle, event))
           .onActionEnd((): void => this.endResize())
           .onActionCancel((): void => this.cancelResize())
@@ -1787,12 +1787,12 @@ export struct FreeCanvas {
       .stroke(SELECTED_NODE_BORDER)
       .strokeWidth(2)
       .position({
-        x: this.connectionHandlePoint(node, side).x - ANCHOR_HALF,
-        y: this.connectionHandlePoint(node, side).y - ANCHOR_HALF
+        x: this.connectionHandlePoint(this.latestNode(node), side).x - ANCHOR_HALF,
+        y: this.connectionHandlePoint(this.latestNode(node), side).y - ANCHOR_HALF
       })
       .gesture(
         PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
-          .onActionStart((): void => this.beginConnection(node, side))
+          .onActionStart((): void => this.beginConnection(this.latestNode(node), side))
           .onActionUpdate((event: GestureEvent): void => this.updateConnection(event))
           .onActionEnd((): void => this.endConnection())
           .onActionCancel((): void => this.cancelConnection())
