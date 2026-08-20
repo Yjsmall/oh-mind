@@ -1400,6 +1400,16 @@ export struct FreeCanvas {
     return this.draftDocument.nodes.find((node: CanvasTextNode): boolean => node.id === nodeId);
   }
 
+  /**
+   * Returns the freshest node object for a card id. `Repeat` reuses item
+   * references across updates, so the card builder reads directly from the
+   * latest immutable `draftDocument` instead of trusting the item it was given.
+   */
+  private latestNode(reference: CanvasTextNode): CanvasTextNode {
+    const latest = this.draftDocument.nodes.find((node: CanvasTextNode): boolean => node.id === reference.id);
+    return latest === undefined ? reference : latest;
+  }
+
   private createEdgeId(): string {
     let id = '';
     do {
@@ -2281,11 +2291,20 @@ export struct FreeCanvas {
   @Builder
   private NodeCard(node: CanvasTextNode) {
     FreeCanvasNodeCard({
-      node,
-      viewport: this.viewport(),
-      selected: this.selectedNodeIds.includes(node.id),
-      editing: this.editingNodeId === node.id,
+      node: this.latestNode(node),
+      contentText: this.latestNode(node).text,
+      x: this.latestNode(node).x,
+      y: this.latestNode(node).y,
+      renderWidth: this.latestNode(node).width,
+      renderHeight: this.latestNode(node).height,
+      renderColor: nodeBackground(this.latestNode(node).color),
+      selected: this.selectedNodeIds.includes(this.latestNode(node).id),
+      editing: this.editingNodeId === this.latestNode(node).id,
       editingText: this.nodeTextDraft,
+      viewportX: this.viewport().x,
+      viewportY: this.viewport().y,
+      viewportScale: this.viewport().scale,
+      renderTick: this.renderRevision,
       nodeContentBuilder: this.nodeContentBuilder,
       nodeContentContext: this.nodeContentContext,
       onCardSelect: (nodeId: string): void => this.selectNode(nodeId, false),

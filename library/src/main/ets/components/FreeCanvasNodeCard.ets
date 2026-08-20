@@ -1,6 +1,5 @@
 import {
-  CanvasTextNode,
-  CanvasViewport
+  CanvasTextNode
 } from '../model/CanvasModel';
 import {
   FREE_CANVAS_CARD_DRAG_THRESHOLD_VP
@@ -42,21 +41,30 @@ const DEFAULT_CARD_BUILDER: WrappedBuilder<[CanvasTextNode, Object]> = wrapBuild
 /**
  * A single immutable node card in the free canvas.
  *
- * The parent passes fresh immutable `CanvasTextNode` objects on every completed
- * edit, move, resize or recolor, so the card re-renders position, size, color
- * and Markdown content immediately. Its single-finger gestures are exactly the
- * tablet contract: tap selects, drag past ~6vp selects and moves, double tap
- * edits. Mouse clicks on a card are routed through the canvas background handler
- * (which understands Ctrl/Shift append), so the card itself does not attach an
- * onClick that would fight its gestures.
+ * Position, size, color, selection and viewport arrive as scalar `@Param` values
+ * so ArkUI V2 reliably re-renders the card on every completed edit, move, resize
+ * or recolor (interface `@Param` objects are not observed field-by-field). The
+ * `node` object is only used to feed the host content builder. Its single-finger
+ * gestures are exactly the tablet contract: tap selects, drag past ~6vp selects
+ * and moves, double tap edits. While editing, the TextArea owns all touches and
+ * the card never pans.
  */
 @ComponentV2
 export struct FreeCanvasNodeCard {
   @Require @Param node: CanvasTextNode;
-  @Param viewport: CanvasViewport = { x: 0, y: 0, scale: 1 };
+  @Param contentText: string = '';
+  @Param x: number = 0;
+  @Param y: number = 0;
+  @Param renderWidth: number = 240;
+  @Param renderHeight: number = 160;
+  @Param renderColor: string = DEFAULT_NODE_BACKGROUND;
   @Param selected: boolean = false;
   @Param editing: boolean = false;
   @Param editingText: string = '';
+  @Param viewportX: number = 0;
+  @Param viewportY: number = 0;
+  @Param viewportScale: number = 1;
+  @Param renderTick: number = 0;
   @Param nodeContentBuilder: WrappedBuilder<[CanvasTextNode, Object]> = DEFAULT_CARD_BUILDER;
   @Param nodeContentContext: Object = new Object();
   @Event onCardSelect: (nodeId: string) => void = (_nodeId: string): void => {
@@ -80,6 +88,20 @@ export struct FreeCanvasNodeCard {
   @Event onCardEditCancel: (nodeId: string) => void = (_nodeId: string): void => {
   };
 
+  /** Rebuilds a node object carrying the latest content for the host builder. */
+  private contentNode(): CanvasTextNode {
+    return {
+      id: this.node.id,
+      type: 'text',
+      text: this.contentText,
+      x: this.node.x,
+      y: this.node.y,
+      width: this.renderWidth,
+      height: this.renderHeight,
+      color: this.node.color
+    };
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       if (this.editing) {
@@ -97,13 +119,13 @@ export struct FreeCanvasNodeCard {
             this.onCardEditCommit(this.node.id);
           })
       } else {
-        this.nodeContentBuilder.builder(this.node, this.nodeContentContext)
+        this.nodeContentBuilder.builder(this.contentNode(), this.nodeContentContext)
       }
     }
-    .width(this.node.width)
-    .height(this.node.height)
+    .width(this.renderWidth)
+    .height(this.renderHeight)
     .id('free-canvas-node-' + this.node.id)
-    .backgroundColor(nodeBackground(this.node.color))
+    .backgroundColor(this.renderColor)
     .border({
       width: this.selected ? 2 : 1,
       color: this.selected ? SELECTED_NODE_BORDER : DEFAULT_NODE_BORDER,
@@ -112,10 +134,10 @@ export struct FreeCanvasNodeCard {
     .shadow({ radius: 8, color: '#18000000', offsetX: 0, offsetY: 2 })
     .clip(true)
     .position({
-      x: this.viewport.x + this.node.x * this.viewport.scale,
-      y: this.viewport.y + this.node.y * this.viewport.scale
+      x: this.viewportX + this.x * this.viewportScale,
+      y: this.viewportY + this.y * this.viewportScale
     })
-    .scale({ x: this.viewport.scale, y: this.viewport.scale, centerX: 0, centerY: 0 })
+    .scale({ x: this.viewportScale, y: this.viewportScale, centerX: 0, centerY: 0 })
     .gesture(
       GestureGroup(
         GestureMode.Exclusive,
