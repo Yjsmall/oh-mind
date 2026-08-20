@@ -36,6 +36,33 @@ import {
   FlatNodeObj,
   MenuOptionItem
 } from './src/main/ets/model/NodeObj';
+import {
+  CARDNOTE_CANVAS_SCHEMA_VERSION,
+  CardNoteCanvasExtension,
+  CanvasDocument,
+  CanvasEdge,
+  CanvasEdgeEnd,
+  CanvasNodeType,
+  CanvasSide,
+  CanvasTextNode,
+  CanvasViewport,
+  JSON_CANVAS_DEFAULT_FROM_END,
+  JSON_CANVAS_DEFAULT_TO_END,
+  cloneCanvasDocument,
+  resolveCanvasEdgeFromEnd,
+  resolveCanvasEdgeToEnd
+} from './src/main/ets/model/CanvasModel';
+import {
+  CanvasValidationError,
+  CanvasValidationErrorCode,
+  validateCanvasDocument
+} from './src/main/ets/model/CanvasValidation';
+import {
+  CanvasJsonCodecError,
+  CanvasJsonCodecErrorCode,
+  parseCanvasJson,
+  serializeCanvasJson
+} from './src/main/ets/codec/CanvasJsonCodec';
 
 export {
   MindElixir,
@@ -58,5 +85,26 @@ export {
   WindowRect,
   TextSize,
   FlatNodeObj,
-  MenuOptionItem
+  MenuOptionItem,
+  CARDNOTE_CANVAS_SCHEMA_VERSION,
+  CardNoteCanvasExtension,
+  CanvasDocument,
+  CanvasEdge,
+  CanvasEdgeEnd,
+  CanvasJsonCodecError,
+  CanvasJsonCodecErrorCode,
+  CanvasNodeType,
+  CanvasSide,
+  CanvasTextNode,
+  CanvasValidationError,
+  CanvasValidationErrorCode,
+  CanvasViewport,
+  JSON_CANVAS_DEFAULT_FROM_END,
+  JSON_CANVAS_DEFAULT_TO_END,
+  cloneCanvasDocument,
+  parseCanvasJson,
+  resolveCanvasEdgeFromEnd,
+  resolveCanvasEdgeToEnd,
+  serializeCanvasJson,
+  validateCanvasDocument
 };

@@ -14,7 +14,9 @@
  */
 
 import localUnitTest from './LocalUnit.test';
+import canvasJsonCodecTest from './CanvasJsonCodec.test';
 
 export default function testsuite() {
   localUnitTest();
+  canvasJsonCodecTest();
 }
