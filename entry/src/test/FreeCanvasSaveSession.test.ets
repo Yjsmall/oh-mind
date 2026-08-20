@@ -11,14 +11,24 @@ function saveDocument(text: string): CanvasDocument {
 export default function freeCanvasSaveSessionTest() {
   describe('freeCanvasSaveSessionTest', () => {
     it('issuesMonotonicRequestsFromConfirmedRevision', 0, () => {
-      const session = new FreeCanvasSaveSession(4);
+      const session = new FreeCanvasSaveSession(4, 'test-session');
       const first = session.createRequest(saveDocument('one'));
       const second = session.createRequest(saveDocument('two'));
-      expect(first.requestId).assertEqual('canvas-save-1');
-      expect(second.requestId).assertEqual('canvas-save-2');
+      expect(first.requestId).assertEqual('test-session-save-1');
+      expect(second.requestId).assertEqual('test-session-save-2');
       expect(first.baseRevision).assertEqual(4);
       expect(second.baseRevision).assertEqual(4);
       expect(session.getStatus()).assertEqual('pending');
+    });
+
+    it('keepsRequestIdsUniqueAcrossCanvasSessions', 0, () => {
+      const firstSession = new FreeCanvasSaveSession();
+      const secondSession = new FreeCanvasSaveSession();
+
+      const first = firstSession.createRequest(saveDocument('one'));
+      const second = secondSession.createRequest(saveDocument('two'));
+
+      expect(first.requestId === second.requestId).assertFalse();
     });
 
     it('advancesOnlyAfterSuccessfulHostResults', 0, () => {

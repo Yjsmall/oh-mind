@@ -96,7 +96,7 @@ struct MindMapView {
 }
 ```
 
-Each completion event contains a unique monotonic `requestId`, the last confirmed `baseRevision`, and an immutable candidate document. Feed the matching `FreeCanvasSaveResult` back through `saveResult`; only a successful result advances the confirmed revision. Failure retains a visible retryable draft, while duplicate and out-of-order results cannot regress the session. The host remains responsible for serial persistence and authoritative committed snapshots.
+Each completion event contains a process-unique, session-prefixed monotonic `requestId`, the last confirmed `baseRevision`, and an immutable candidate document. Feed the matching `FreeCanvasSaveResult` back through `saveResult`; only a successful result advances the confirmed revision. Failure retains a visible retryable draft, while duplicate and out-of-order results cannot regress the session. The host remains responsible for serial persistence and authoritative committed snapshots.
 
 The controller exposes viewport and selection commands plus `addTextNode`, `editSelectedNode`, `commitNodeEdit`, `cancelNodeEdit`, `setSelectedNodesColor`, `reorderSelectedNode`, `activateSelectedNode`, `retrySave`, undo/redo, copy/delete, layout, and edge editing. Node activation emits only the node ID and never changes the snapshot. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
 

@@ -26,7 +26,15 @@ function validRevision(revision: number): boolean {
   return Number.isInteger(revision) && revision >= 0;
 }
 
+let saveSessionSequence: number = 0;
+
+function nextSaveSessionId(): string {
+  saveSessionSequence++;
+  return 'canvas-session-' + saveSessionSequence;
+}
+
 export class FreeCanvasSaveSession {
+  private readonly sessionId: string;
   private confirmedRevision: number;
   private sequence: number = 0;
   private pending: PendingSaveRequest[] = [];
@@ -34,13 +42,14 @@ export class FreeCanvasSaveSession {
   private latestSuccessfulSequence: number = 0;
   private failed: boolean = false;
 
-  constructor(confirmedRevision: number = 0) {
+  constructor(confirmedRevision: number = 0, sessionId: string = nextSaveSessionId()) {
+    this.sessionId = sessionId.trim().length > 0 ? sessionId : nextSaveSessionId();
     this.confirmedRevision = validRevision(confirmedRevision) ? confirmedRevision : 0;
   }
 
   createRequest(document: CanvasDocument): FreeCanvasSaveRequest {
     this.sequence++;
-    const requestId = 'canvas-save-' + this.sequence;
+    const requestId = this.sessionId + '-save-' + this.sequence;
     this.pending.push({ requestId, sequence: this.sequence });
     this.failed = false;
     return {
