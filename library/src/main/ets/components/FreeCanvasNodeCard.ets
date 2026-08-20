@@ -44,10 +44,11 @@ const DEFAULT_CARD_BUILDER: WrappedBuilder<[CanvasTextNode, Object]> = wrapBuild
  *
  * The parent passes fresh immutable `CanvasTextNode` objects on every completed
  * edit, move, resize or recolor, so the card re-renders position, size, color
- * and Markdown content immediately. Its own single-finger gestures are exactly
- * the tablet contract: tap selects, drag past ~6vp selects and moves, double tap
- * edits. While editing, the pan/select guards in the parent are inactive and the
- * TextArea owns all touches, so editing never pan-moves the card.
+ * and Markdown content immediately. Its single-finger gestures are exactly the
+ * tablet contract: tap selects, drag past ~6vp selects and moves, double tap
+ * edits. Mouse clicks on a card are routed through the canvas background handler
+ * (which understands Ctrl/Shift append), so the card itself does not attach an
+ * onClick that would fight its gestures.
  */
 @ComponentV2
 export struct FreeCanvasNodeCard {
@@ -58,9 +59,8 @@ export struct FreeCanvasNodeCard {
   @Param editingText: string = '';
   @Param nodeContentBuilder: WrappedBuilder<[CanvasTextNode, Object]> = DEFAULT_CARD_BUILDER;
   @Param nodeContentContext: Object = new Object();
-  @Event onCardSelect: (nodeId: string, event: ClickEvent) => void =
-    (_nodeId: string, _event: ClickEvent): void => {
-    };
+  @Event onCardSelect: (nodeId: string) => void = (_nodeId: string): void => {
+  };
   @Event onCardDoubleTap: (nodeId: string) => void = (_nodeId: string): void => {
   };
   @Event onCardDragStart: (nodeId: string) => void = (_nodeId: string): void => {
@@ -116,13 +116,16 @@ export struct FreeCanvasNodeCard {
       y: this.viewport.y + this.node.y * this.viewport.scale
     })
     .scale({ x: this.viewport.scale, y: this.viewport.scale, centerX: 0, centerY: 0 })
-    .onClick((event: ClickEvent): void => this.onCardSelect(this.node.id, event))
     .gesture(
       GestureGroup(
         GestureMode.Exclusive,
         TapGesture({ count: 2 })
           .onAction((): void => {
             this.onCardDoubleTap(this.node.id);
+          }),
+        TapGesture({ count: 1 })
+          .onAction((): void => {
+            this.onCardSelect(this.node.id);
           }),
         PanGesture({
           fingers: 1,

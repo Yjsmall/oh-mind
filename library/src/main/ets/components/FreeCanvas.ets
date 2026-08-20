@@ -257,6 +257,7 @@ export struct FreeCanvas {
   private pinchStartCenter: CanvasPoint = { x: 0, y: 0 };
   private marqueeStart: CanvasPoint = { x: 0, y: 0 };
   private selectionBeforeMarquee: string[] = [];
+  private marqueeActive: boolean = false;
   private dragStartPositions: CanvasNodePosition[] = [];
   private resizeStartNode: CanvasTextNode | undefined = undefined;
   private nodeDragStartDocument: CanvasDocument | undefined = undefined;
@@ -807,7 +808,7 @@ export struct FreeCanvas {
     return isValidCustomEdgeColor(value) && this.setSelectedEdgeColor(value.toUpperCase());
   }
 
-  private selectNode(nodeId: string, event: ClickEvent): void {
+  private selectNode(nodeId: string, toggleModifier: boolean): void {
     if (this.editingNodeId.length > 0) {
       return;
     }
@@ -815,18 +816,36 @@ export struct FreeCanvas {
     this.edgeLabelDraft = '';
     this.edgeColorDraft = '';
     this.closePopups();
-    const toggle = this.multiSelectEnabled ||
-      event.getModifierKeyState?.(['Ctrl']) === true ||
-      event.getModifierKeyState?.(['Shift']) === true;
-    const next = selectNodesForTap(this.selectedNodeIds, nodeId, this.multiSelectEnabled, toggle);
-    this.selectedNodeIds = next;
-    this.primaryNodeId = primaryNodeForSelection(next, nodeId);
-    // A card's ClickEvent bubbles to the canvas background; keep the background
+    this.applyNodeTapSelection(nodeId, toggleModifier);
+    // A card's tap bubbles to the canvas background; keep the background
     // handler from turning this into an empty-canvas deselect.
     this.suppressNextBackgroundClick = true;
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
       'node tap: nodeId=%{public}s multiSelect=%{public}s selected=%{public}d',
       nodeId, String(this.multiSelectEnabled), this.selectedNodeIds.length);
+  }
+
+  private selectNodeWithEvent(nodeId: string, event: ClickEvent): void {
+    if (this.editingNodeId.length > 0) {
+      return;
+    }
+    const toggleModifier = event.getModifierKeyState?.(['Ctrl']) === true ||
+      event.getModifierKeyState?.(['Shift']) === true;
+    this.selectedEdgeId = '';
+    this.edgeLabelDraft = '';
+    this.edgeColorDraft = '';
+    this.closePopups();
+    this.applyNodeTapSelection(nodeId, toggleModifier);
+    this.suppressNextBackgroundClick = true;
+    hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
+      'node tap: nodeId=%{public}s multiSelect=%{public}s selected=%{public}d',
+      nodeId, String(this.multiSelectEnabled), this.selectedNodeIds.length);
+  }
+
+  private applyNodeTapSelection(nodeId: string, toggleModifier: boolean): void {
+    const next = selectNodesForTap(this.selectedNodeIds, nodeId, this.multiSelectEnabled, toggleModifier);
+    this.selectedNodeIds = next;
+    this.primaryNodeId = primaryNodeForSelection(next, nodeId);
   }
 
   private beginNodeGesture(nodeId: string): void {
@@ -1000,6 +1019,7 @@ export struct FreeCanvas {
     this.selectionBeforeMarquee = this.selectedNodeIds.slice();
     this.marqueeStart = screenToWorld({ x, y }, this.panStartViewport);
     this.marqueeRect = { x: this.marqueeStart.x, y: this.marqueeStart.y, width: 0, height: 0 };
+    this.marqueeActive = true;
     this.gestureMachine.moveEmpty(x, y);
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
       'marquee armed: multiSelect=%{public}s selectedBefore=%{public}d',
@@ -1052,6 +1072,7 @@ export struct FreeCanvas {
     }
     this.gestureMachine.endEmpty();
     this.marqueeRect = undefined;
+    this.marqueeActive = false;
     this.selectionBeforeMarquee = [];
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
       'marquee end: selected=%{public}d multiSelect=%{public}s',
@@ -1061,9 +1082,12 @@ export struct FreeCanvas {
   private cancelMarquee(): void {
     this.gestureMachine.cancel();
     this.marqueeRect = undefined;
-    this.selectedNodeIds = this.selectionBeforeMarquee;
+    if (this.marqueeActive) {
+      this.marqueeActive = false;
+      this.selectedNodeIds = this.selectionBeforeMarquee;
+      this.primaryNodeId = primaryNodeForSelection(this.selectedNodeIds, this.primaryNodeId);
+    }
     this.selectionBeforeMarquee = [];
-    this.primaryNodeId = primaryNodeForSelection(this.selectedNodeIds, this.primaryNodeId);
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
       'marquee cancelled: selected=%{public}d', this.selectedNodeIds.length);
   }
@@ -1076,7 +1100,11 @@ export struct FreeCanvas {
     }
     if (this.marqueeRect !== undefined) {
       this.marqueeRect = undefined;
-      this.selectedNodeIds = this.selectionBeforeMarquee;
+      if (this.marqueeActive) {
+        this.marqueeActive = false;
+        this.selectedNodeIds = this.selectionBeforeMarquee;
+        this.primaryNodeId = primaryNodeForSelection(this.selectedNodeIds, this.primaryNodeId);
+      }
       this.selectionBeforeMarquee = [];
     }
     this.gestureMachine.beginPinch(validFingerCount(event));
@@ -1172,6 +1200,39 @@ export struct FreeCanvas {
     }
   }
 
+  private pointInsideToolbar(x: number, y: number): boolean {
+    if (this.selectedEdgeId.length > 0) {
+      const position = this.toolbarPosition(TOOLBAR_EDGE_WIDTH);
+      if (x >= position.x && x <= position.x + TOOLBAR_EDGE_WIDTH &&
+        y >= position.y && y <= position.y + TOOLBAR_HEIGHT) {
+        return true;
+      }
+    }
+    if (this.selectedNodeIds.length > 0 && this.selectedEdgeId.length === 0) {
+      const position = this.toolbarPosition(TOOLBAR_MULTI_WIDTH);
+      if (x >= position.x && x <= position.x + TOOLBAR_MULTI_WIDTH &&
+        y >= position.y && y <= position.y + TOOLBAR_HEIGHT) {
+        return true;
+      }
+      const colorPosition = this.toolbarPosition(240);
+      if (this.colorPopupVisible && x >= colorPosition.x && x <= colorPosition.x + 240 &&
+        y >= colorPosition.y - 300 && y <= colorPosition.y) {
+        return true;
+      }
+      const alignPosition = this.toolbarPosition(160);
+      if (this.alignPopupVisible && x >= alignPosition.x && x <= alignPosition.x + 160 &&
+        y >= alignPosition.y - 360 && y <= alignPosition.y) {
+        return true;
+      }
+      const morePosition = this.toolbarPosition(120);
+      if (this.morePopupVisible && x >= morePosition.x && x <= morePosition.x + 120 &&
+        y >= morePosition.y - 200 && y <= morePosition.y) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private hitTestNode(x: number, y: number): CanvasTextNode | undefined {
     for (let index = this.draftDocument.nodes.length - 1; index >= 0; index--) {
       const node = this.draftDocument.nodes[index];
@@ -1212,6 +1273,18 @@ export struct FreeCanvas {
       return;
     }
     if (this.editingNodeId.length > 0) {
+      return;
+    }
+    // Clicks on floating toolbars bubble to the canvas; never let them clear the
+    // selection they operate on.
+    if (this.pointInsideToolbar(event.x, event.y)) {
+      return;
+    }
+    // Mouse clicks on a card reach here (cards consume gestures but not the
+    // parent click); route them into selection with Ctrl/Shift modifiers.
+    const hitNode = this.hitTestNode(event.x, event.y);
+    if (hitNode !== undefined) {
+      this.selectNodeWithEvent(hitNode.id, event);
       return;
     }
     const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: event.x, y: event.y });
@@ -2215,7 +2288,7 @@ export struct FreeCanvas {
       editingText: this.nodeTextDraft,
       nodeContentBuilder: this.nodeContentBuilder,
       nodeContentContext: this.nodeContentContext,
-      onCardSelect: (nodeId: string, event: ClickEvent): void => this.selectNode(nodeId, event),
+      onCardSelect: (nodeId: string): void => this.selectNode(nodeId, false),
       onCardDoubleTap: (nodeId: string): void => {
         this.beginNodeEdit(nodeId);
       },
