@@ -2,7 +2,7 @@
 
 `@ohos/mind-elixir` provides the JSON Canvas core and ArkUI V2 free-canvas component used by CardNote. Version 2 is an incompatible redesign: the former tree-shaped `MindElixir`, `MindElixirCore`, and `NodeObj` APIs have been removed.
 
-`FreeCanvas` renders edges in a Canvas layer and positions native ArkUI node content above it. It supports selection, multi-selection, marquee selection, node dragging, eight resize handles, canvas panning, pinch and wheel zoom, fit-to-content, viewport reset, and arrow-key nudging. Four-side anchors create edges; selected edges support labels, four direction modes, deletion, and endpoint reconnection. Copy, delete, undo, redo, alignment, row/column arrangement, equal distribution, and explicit deterministic auto-arrange are available through the controller. Gesture drafts remain inside the component; the host receives one candidate snapshot when an operation completes.
+`FreeCanvas` renders edges in a Canvas layer and positions native ArkUI node content above it. It supports text-node creation and editing, colors and z-order, selection, multi-selection, marquee selection, node dragging, eight resize handles, canvas panning, pinch and wheel zoom, fit-to-content, viewport reset, and arrow-key nudging. Four-side anchors create edges; selected edges support labels, four direction modes, deletion, and endpoint reconnection. Copy, delete, undo, redo, alignment, row/column arrangement, equal distribution, and explicit deterministic auto-arrange are available through the controller. Gesture and text-edit drafts remain inside the component; the host receives one save request when an operation completes.
 
 ## Data Contract
 
@@ -75,21 +75,30 @@ Supported commands are `addNode`, `updateNode`, `removeNode`, `reorderNode`, `ad
 @ComponentV2
 struct MindMapView {
   @Require @Param document: CanvasDocument;
+  @Require @Param revision: number;
+  @Require @Param saveResult: FreeCanvasSaveResult | undefined;
   private readonly canvasController = new FreeCanvasController();
 
   build() {
     FreeCanvas({
       document: this.document,
       controller: this.canvasController,
+      committedRevision: this.revision,
+      saveResult: this.saveResult,
       onChangeComplete: (event: FreeCanvasChangeEvent): void => {
-        // Submit event.document to the host persistence boundary.
+        // Persist event.document using event.requestId and event.baseRevision.
+      },
+      onNodeActivate: (nodeId: string): void => {
+        // Resolve references and navigate in the host.
       }
     })
   }
 }
 ```
 
-The controller exposes viewport and selection commands plus `undo`, `redo`, `copySelection`, `deleteSelection`, `alignSelection`, `arrangeSelection`, `distributeSelection`, `autoArrange`, `setSelectedEdgeLabel`, and `setSelectedEdgeDirection`. `canUndo` and `canRedo` report the component session state. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
+Each completion event contains a unique monotonic `requestId`, the last confirmed `baseRevision`, and an immutable candidate document. Feed the matching `FreeCanvasSaveResult` back through `saveResult`; only a successful result advances the confirmed revision. Failure retains a visible retryable draft, while duplicate and out-of-order results cannot regress the session. The host remains responsible for serial persistence and authoritative committed snapshots.
+
+The controller exposes viewport and selection commands plus `addTextNode`, `editSelectedNode`, `commitNodeEdit`, `cancelNodeEdit`, `setSelectedNodesColor`, `reorderSelectedNode`, `activateSelectedNode`, `retrySave`, undo/redo, copy/delete, layout, and edge editing. Node activation emits only the node ID and never changes the snapshot. Pass a `WrappedBuilder<[CanvasTextNode, Object]>` through `nodeContentBuilder` to render native Markdown/LaTeX content; without one, the component uses a plain-text fallback. The component does not access persistence, PDF state, ArkWeb, or native parsing modules.
 
 Undo history is bounded and session-only. A completed drag, resize, viewport gesture, edge operation, copy/delete, or layout command creates at most one history item. Ordinary snapshot loading never invokes auto-arrange; only an explicit `autoArrange` command changes the layout.
 

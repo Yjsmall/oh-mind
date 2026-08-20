@@ -47,6 +47,14 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   readonly arrangeSelection = (): boolean => false;
   readonly distributeSelection = (): boolean => false;
   readonly autoArrange = (): boolean => false;
+  readonly addTextNode = (): boolean => false;
+  readonly editSelectedNode = (): boolean => false;
+  readonly commitNodeEdit = (): boolean => false;
+  readonly cancelNodeEdit = (): boolean => false;
+  readonly setSelectedNodesColor = (): boolean => false;
+  readonly reorderSelectedNode = (): boolean => false;
+  readonly activateSelectedNode = (): boolean => false;
+  readonly retrySave = (): boolean => false;
   readonly setSelectedEdgeLabel = (): boolean => false;
   readonly setSelectedEdgeDirection = (): boolean => false;
 }

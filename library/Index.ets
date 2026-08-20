@@ -114,6 +114,20 @@ export {
   findCanvasEdgeAt,
   nearestCanvasNodeSide
 } from './src/main/ets/geometry/CanvasEditingGeometry';
+export {
+  addCanvasTextNode,
+  reorderCanvasNode,
+  setCanvasNodesColor,
+  updateCanvasNodeText
+} from './src/main/ets/editing/CanvasNodeEditing';
+export type { CanvasNodeLayerAction } from './src/main/ets/editing/CanvasNodeEditing';
+export { FreeCanvasSaveSession } from './src/main/ets/controller/FreeCanvasSaveSession';
+export type {
+  FreeCanvasSaveRequest,
+  FreeCanvasSaveResult,
+  FreeCanvasSaveResultDisposition,
+  FreeCanvasSaveStatus
+} from './src/main/ets/controller/FreeCanvasSaveSession';
 export type {
   CanvasAlignment,
   CanvasArrangement,

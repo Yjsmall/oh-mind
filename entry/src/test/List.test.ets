@@ -17,10 +17,14 @@ import localUnitTest from './LocalUnit.test';
 import canvasJsonCodecTest from './CanvasJsonCodec.test';
 import freeCanvasGeometryTest from './FreeCanvasGeometry.test';
 import canvasEditingGeometryTest from './CanvasEditingGeometry.test';
+import canvasNodeEditingTest from './CanvasNodeEditing.test';
+import freeCanvasSaveSessionTest from './FreeCanvasSaveSession.test';
 
 export default function testsuite() {
   localUnitTest();
   canvasJsonCodecTest();
   freeCanvasGeometryTest();
   canvasEditingGeometryTest();
+  canvasNodeEditingTest();
+  freeCanvasSaveSessionTest();
 }

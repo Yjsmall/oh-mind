@@ -52,6 +52,18 @@ import {
   FreeCanvasEdgeDirection,
   FreeCanvasInteractionMode
 } from '../controller/FreeCanvasController';
+import {
+  CanvasNodeLayerAction,
+  addCanvasTextNode,
+  reorderCanvasNode,
+  setCanvasNodesColor,
+  updateCanvasNodeText
+} from '../editing/CanvasNodeEditing';
+import {
+  FreeCanvasSaveResult,
+  FreeCanvasSaveSession,
+  FreeCanvasSaveStatus
+} from '../controller/FreeCanvasSaveSession';
 
 const RESIZE_HANDLE_SIZE: number = 12;
 const RESIZE_HANDLE_HALF: number = RESIZE_HANDLE_SIZE / 2;
@@ -66,16 +78,21 @@ const SELECTED_EDGE_COLOR: string = '#FFB54708';
 const CONNECTION_DRAFT_COLOR: string = '#FF146C94';
 const ANCHOR_SIZE: number = 14;
 const ANCHOR_HALF: number = ANCHOR_SIZE / 2;
+const DEFAULT_NEW_NODE_WIDTH: number = 240;
+const DEFAULT_NEW_NODE_HEIGHT: number = 160;
 const EMPTY_DOCUMENT: CanvasDocument = { nodes: [], edges: [] };
 
 export type FreeCanvasChangeReason =
   'viewport' | 'nodeMove' | 'nodeResize' | 'keyboardNudge' |
+  'nodeAdd' | 'nodeEdit' | 'nodeColor' | 'nodeReorder' |
   'edgeAdd' | 'edgeUpdate' | 'edgeDelete' | 'edgeReconnect' |
   'copy' | 'delete' | 'align' | 'arrange' | 'distribute' | 'autoArrange' |
-  'undo' | 'redo';
+  'undo' | 'redo' | 'retry';
 
 export interface FreeCanvasChangeEvent {
   readonly reason: FreeCanvasChangeReason;
+  readonly requestId: string;
+  readonly baseRevision: number;
   readonly document: CanvasDocument;
   readonly selectedNodeIds: ReadonlyArray<string>;
   readonly selectedEdgeId?: string;
@@ -153,7 +170,11 @@ export struct FreeCanvas {
   @Param controller: FreeCanvasController = new FreeCanvasController();
   @Param nodeContentBuilder: WrappedBuilder<[CanvasTextNode, Object]> = DEFAULT_NODE_BUILDER;
   @Param nodeContentContext: Object = new DefaultFreeCanvasNodeContext();
+  @Param committedRevision: number = 0;
+  @Param saveResult: FreeCanvasSaveResult | undefined = undefined;
   @Event onChangeComplete: (event: FreeCanvasChangeEvent) => void = (): void => {
+  };
+  @Event onNodeActivate: (nodeId: string) => void = (): void => {
   };
 
   @Local private draftDocument: CanvasDocument = EMPTY_DOCUMENT;
@@ -162,6 +183,9 @@ export struct FreeCanvas {
   @Local private selectedEdgeId: string = '';
   @Local private edgeLabelDraft: string = '';
   @Local private edgeLabelEditing: boolean = false;
+  @Local private editingNodeId: string = '';
+  @Local private nodeTextDraft: string = '';
+  @Local private saveStatus: FreeCanvasSaveStatus = 'saved';
   @Local private interactionMode: FreeCanvasInteractionMode = 'select';
   @Local private marqueeRect: CanvasRect | undefined = undefined;
   @Local private connectionDraft: CanvasConnectionDraft | undefined = undefined;
@@ -182,8 +206,11 @@ export struct FreeCanvas {
   private pinchStartDocument: CanvasDocument | undefined = undefined;
   private axisStartDocument: CanvasDocument | undefined = undefined;
   private historyController: CanvasController = new CanvasController();
+  private saveSession: FreeCanvasSaveSession = new FreeCanvasSaveSession();
   private copySequence: number = 0;
   private edgeSequence: number = 0;
+  private nodeSequence: number = 0;
+  private nodeGesturePansViewport: boolean = false;
   private axisChanged: boolean = false;
   private readonly controllerBinding: FreeCanvasControllerBinding = {
     fitContent: (): void => this.fitContent(),
@@ -200,12 +227,22 @@ export struct FreeCanvas {
     arrangeSelection: (arrangement: CanvasArrangement): boolean => this.arrangeSelection(arrangement),
     distributeSelection: (distribution: CanvasDistribution): boolean => this.distributeSelection(distribution),
     autoArrange: (): boolean => this.autoArrange(),
+    addTextNode: (text: string): boolean => this.addTextNode(text),
+    editSelectedNode: (): boolean => this.editSelectedNode(),
+    commitNodeEdit: (): boolean => this.commitNodeEdit(),
+    cancelNodeEdit: (): boolean => this.cancelNodeEdit(),
+    setSelectedNodesColor: (color?: string): boolean => this.setSelectedNodesColor(color),
+    reorderSelectedNode: (action: CanvasNodeLayerAction): boolean => this.reorderSelectedNode(action),
+    activateSelectedNode: (): boolean => this.activateSelectedNode(),
+    retrySave: (): boolean => this.retrySave(),
     setSelectedEdgeLabel: (label: string): boolean => this.setSelectedEdgeLabel(label),
     setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection): boolean =>
       this.setSelectedEdgeDirection(direction)
   };
 
   aboutToAppear(): void {
+    this.saveSession.syncConfirmedRevision(this.committedRevision);
+    this.saveStatus = this.saveSession.getStatus();
     this.acceptInputDocument();
     this.controller.bind(this.controllerBinding);
   }
@@ -219,6 +256,21 @@ export struct FreeCanvas {
     this.acceptInputDocument();
   }
 
+  @Monitor('committedRevision')
+  private onCommittedRevisionChanged(): void {
+    this.saveSession.syncConfirmedRevision(this.committedRevision);
+    this.saveStatus = this.saveSession.getStatus();
+  }
+
+  @Monitor('saveResult')
+  private onSaveResultChanged(): void {
+    if (this.saveResult === undefined) {
+      return;
+    }
+    this.saveSession.applyResult(this.saveResult);
+    this.saveStatus = this.saveSession.getStatus();
+  }
+
   @Monitor('renderRevision')
   private onRenderRevisionChanged(): void {
     this.drawEdges();
@@ -229,6 +281,8 @@ export struct FreeCanvas {
     if (json === this.inputSnapshotJson) {
       return;
     }
+    this.saveSession = new FreeCanvasSaveSession(this.committedRevision);
+    this.saveStatus = this.saveSession.getStatus();
     this.inputSnapshotJson = json;
     this.draftDocument = cloneCanvasDocument(this.document);
     this.historyController.replaceSnapshot(this.draftDocument);
@@ -284,16 +338,29 @@ export struct FreeCanvas {
     this.selectedEdgeId = '';
     this.edgeLabelDraft = '';
     this.edgeLabelEditing = false;
+    this.cancelNodeEdit();
   }
 
   private emitChange(reason: FreeCanvasChangeReason): void {
     this.inputSnapshotJson = serializeCanvasJson(this.draftDocument);
+    const request = this.saveSession.createRequest(this.draftDocument);
+    this.saveStatus = this.saveSession.getStatus();
     this.onChangeComplete({
       reason,
-      document: cloneCanvasDocument(this.draftDocument),
+      requestId: request.requestId,
+      baseRevision: request.baseRevision,
+      document: request.document,
       selectedNodeIds: this.selectedNodeIds.slice(),
       selectedEdgeId: this.selectedEdgeId.length === 0 ? undefined : this.selectedEdgeId
     });
+  }
+
+  private retrySave(): boolean {
+    if (!this.saveSession.hasUnsavedChanges()) {
+      return false;
+    }
+    this.emitChange('retry');
+    return true;
   }
 
   private completeDraft(reason: FreeCanvasChangeReason, before: CanvasDocument | undefined): boolean {
@@ -420,6 +487,91 @@ export struct FreeCanvas {
     return this.commitCandidate(autoArrangeCanvasNodes(this.draftDocument, nodeIds), 'autoArrange');
   }
 
+  private createNodeId(): string {
+    let id = '';
+    do {
+      this.nodeSequence++;
+      id = 'node-' + this.nodeSequence;
+    } while (this.draftDocument.nodes.some((node: CanvasTextNode): boolean => node.id === id));
+    return id;
+  }
+
+  private addTextNode(text: string): boolean {
+    const id = this.createNodeId();
+    const center = screenToWorld({ x: this.containerWidth / 2, y: this.containerHeight / 2 }, this.viewport());
+    const candidate = addCanvasTextNode(this.draftDocument, id, {
+      x: center.x - DEFAULT_NEW_NODE_WIDTH / 2,
+      y: center.y - DEFAULT_NEW_NODE_HEIGHT / 2
+    }, text, DEFAULT_NEW_NODE_WIDTH, DEFAULT_NEW_NODE_HEIGHT);
+    this.selectedNodeIds = [id];
+    this.primaryNodeId = id;
+    this.selectedEdgeId = '';
+    const changed = this.commitCandidate(candidate, 'nodeAdd');
+    if (changed) {
+      this.beginNodeEdit(id);
+    }
+    return changed;
+  }
+
+  private beginNodeEdit(nodeId: string): boolean {
+    if (this.interactionMode !== 'select') {
+      return false;
+    }
+    const node = this.findNode(nodeId);
+    if (node === undefined) {
+      return false;
+    }
+    this.selectedNodeIds = [nodeId];
+    this.primaryNodeId = nodeId;
+    this.selectedEdgeId = '';
+    this.editingNodeId = nodeId;
+    this.nodeTextDraft = node.text;
+    return true;
+  }
+
+  private editSelectedNode(): boolean {
+    return this.primaryNodeId.length > 0 && this.beginNodeEdit(this.primaryNodeId);
+  }
+
+  private commitNodeEdit(): boolean {
+    if (this.editingNodeId.length === 0) {
+      return false;
+    }
+    const nodeId = this.editingNodeId;
+    const text = this.nodeTextDraft;
+    this.editingNodeId = '';
+    this.nodeTextDraft = '';
+    return this.commitCandidate(updateCanvasNodeText(this.draftDocument, nodeId, text), 'nodeEdit');
+  }
+
+  private cancelNodeEdit(): boolean {
+    if (this.editingNodeId.length === 0) {
+      return false;
+    }
+    this.editingNodeId = '';
+    this.nodeTextDraft = '';
+    return true;
+  }
+
+  private setSelectedNodesColor(color?: string): boolean {
+    return this.commitCandidate(setCanvasNodesColor(this.draftDocument, this.selectedNodeIds, color), 'nodeColor');
+  }
+
+  private reorderSelectedNode(action: CanvasNodeLayerAction): boolean {
+    if (this.primaryNodeId.length === 0) {
+      return false;
+    }
+    return this.commitCandidate(reorderCanvasNode(this.draftDocument, this.primaryNodeId, action), 'nodeReorder');
+  }
+
+  private activateSelectedNode(): boolean {
+    if (this.primaryNodeId.length === 0 || this.findNode(this.primaryNodeId) === undefined) {
+      return false;
+    }
+    this.onNodeActivate(this.primaryNodeId);
+    return true;
+  }
+
   private selectedEdge(): CanvasEdge | undefined {
     return this.draftDocument.edges.find((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId);
   }
@@ -479,6 +631,9 @@ export struct FreeCanvas {
   }
 
   private selectNode(nodeId: string, event: ClickEvent): void {
+    if (this.interactionMode !== 'select' || this.editingNodeId.length > 0) {
+      return;
+    }
     this.selectedEdgeId = '';
     const toggle = event.getModifierKeyState?.(['Ctrl']) === true ||
       event.getModifierKeyState?.(['Shift']) === true;
@@ -498,7 +653,16 @@ export struct FreeCanvas {
     this.primaryNodeId = nodeId;
   }
 
-  private prepareNodeDrag(nodeId: string): void {
+  private beginNodeGesture(nodeId: string, event: GestureEvent): void {
+    if (this.interactionMode === 'pan') {
+      this.nodeGesturePansViewport = true;
+      this.beginBackgroundPan(event);
+      return;
+    }
+    this.nodeGesturePansViewport = false;
+    if (this.editingNodeId.length > 0) {
+      return;
+    }
     this.nodeDragStartDocument = cloneCanvasDocument(this.draftDocument);
     this.selectedEdgeId = '';
     if (!this.selectedNodeIds.includes(nodeId)) {
@@ -511,6 +675,13 @@ export struct FreeCanvas {
   }
 
   private updateNodeDrag(event: GestureEvent): void {
+    if (this.nodeGesturePansViewport) {
+      this.updateBackgroundPan(event);
+      return;
+    }
+    if (this.dragStartPositions.length === 0) {
+      return;
+    }
     const scale = this.viewport().scale;
     this.draftDocument = moveCanvasNodes(this.draftDocument, this.dragStartPositions, {
       x: event.offsetX / scale,
@@ -520,6 +691,11 @@ export struct FreeCanvas {
   }
 
   private endNodeDrag(): void {
+    if (this.nodeGesturePansViewport) {
+      this.nodeGesturePansViewport = false;
+      this.endBackgroundPan();
+      return;
+    }
     if (this.dragStartPositions.length === 0) {
       return;
     }
@@ -529,6 +705,11 @@ export struct FreeCanvas {
   }
 
   private cancelNodeDrag(): void {
+    if (this.nodeGesturePansViewport) {
+      this.nodeGesturePansViewport = false;
+      this.cancelBackgroundPan();
+      return;
+    }
     if (this.dragStartPositions.length === 0) {
       return;
     }
@@ -685,7 +866,7 @@ export struct FreeCanvas {
   }
 
   private handleKey(event: KeyEvent): boolean {
-    if (event.type !== KeyType.Down || this.edgeLabelEditing) {
+    if (event.type !== KeyType.Down || this.edgeLabelEditing || this.editingNodeId.length > 0) {
       return false;
     }
     const control = event.getModifierKeyState?.(['Ctrl']) === true;
@@ -987,7 +1168,23 @@ export struct FreeCanvas {
   @Builder
   private NodeCard(node: CanvasTextNode) {
     Stack({ alignContent: Alignment.TopStart }) {
-      this.nodeContentBuilder.builder(node, this.nodeContentContext)
+      if (this.editingNodeId === node.id) {
+        TextArea({ text: this.nodeTextDraft, placeholder: 'Markdown' })
+          .id('free-canvas-node-editor')
+          .width('100%')
+          .height('100%')
+          .padding(12)
+          .fontSize(14)
+          .backgroundColor(Color.Transparent)
+          .onChange((value: string): void => {
+            this.nodeTextDraft = value;
+          })
+          .onBlur((): void => {
+            this.commitNodeEdit();
+          })
+      } else {
+        this.nodeContentBuilder.builder(node, this.nodeContentContext)
+      }
     }
     .width(node.width)
     .height(node.height)
@@ -1007,11 +1204,18 @@ export struct FreeCanvas {
     .scale({ x: this.viewport().scale, y: this.viewport().scale, centerX: 0, centerY: 0 })
     .onClick((event: ClickEvent): void => this.selectNode(node.id, event))
     .gesture(
-      PanGesture({ fingers: 1, direction: PanDirection.All, distance: 1 })
-        .onActionStart((): void => this.prepareNodeDrag(node.id))
-        .onActionUpdate((event: GestureEvent): void => this.updateNodeDrag(event))
-        .onActionEnd((): void => this.endNodeDrag())
-        .onActionCancel((): void => this.cancelNodeDrag())
+      GestureGroup(
+        GestureMode.Exclusive,
+        TapGesture({ count: 2 })
+          .onAction((): void => {
+            this.beginNodeEdit(node.id);
+          }),
+        PanGesture({ fingers: 1, direction: PanDirection.All, distance: 1 })
+          .onActionStart((event: GestureEvent): void => this.beginNodeGesture(node.id, event))
+          .onActionUpdate((event: GestureEvent): void => this.updateNodeDrag(event))
+          .onActionEnd((): void => this.endNodeDrag())
+          .onActionCancel((): void => this.cancelNodeDrag())
+      )
     )
   }
 
@@ -1040,7 +1244,7 @@ export struct FreeCanvas {
 
   @Builder
   private PrimaryResizeHandles() {
-    if (this.primaryNodeId.length > 0) {
+    if (this.interactionMode === 'select' && this.editingNodeId.length === 0 && this.primaryNodeId.length > 0) {
       if (this.findNode(this.primaryNodeId) !== undefined) {
         this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'nw')
         this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'n')
@@ -1078,7 +1282,7 @@ export struct FreeCanvas {
 
   @Builder
   private PrimaryConnectionAnchors() {
-    if (this.interactionMode === 'select' && this.primaryNodeId.length > 0) {
+    if (this.interactionMode === 'select' && this.editingNodeId.length === 0 && this.primaryNodeId.length > 0) {
       if (this.findNode(this.primaryNodeId) !== undefined) {
         this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'top')
         this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'right')
@@ -1122,7 +1326,7 @@ export struct FreeCanvas {
 
   @Builder
   private SelectedEdgeEndpoints() {
-    if (this.selectedEdgeId.length > 0 && this.selectedEdge() !== undefined) {
+    if (this.interactionMode === 'select' && this.selectedEdgeId.length > 0 && this.selectedEdge() !== undefined) {
       this.EdgeEndpointHandle(this.selectedEdge()!, 'from')
       this.EdgeEndpointHandle(this.selectedEdge()!, 'to')
     }
@@ -1130,7 +1334,7 @@ export struct FreeCanvas {
 
   @Builder
   private SelectedEdgeToolbar() {
-    if (this.selectedEdgeId.length > 0) {
+    if (this.interactionMode === 'select' && this.selectedEdgeId.length > 0) {
       Scroll() {
         Row({ space: 6 }) {
           TextInput({ text: this.edgeLabelDraft, placeholder: 'Label' })
@@ -1208,6 +1412,138 @@ export struct FreeCanvas {
   }
 
   @Builder
+  private NodeColorButton(color: string, background: string) {
+    Button() {
+      Circle()
+        .width(20)
+        .height(20)
+        .fill(background)
+        .stroke('#FF9AA3AD')
+        .strokeWidth(1)
+    }
+    .id('free-canvas-node-color-' + color)
+    .type(ButtonType.Normal)
+    .width(36)
+    .height(36)
+    .backgroundColor(Color.Transparent)
+    .onClick((): void => {
+      this.setSelectedNodesColor(color);
+    })
+  }
+
+  @Builder
+  private SelectedNodeToolbar() {
+    if (this.interactionMode === 'select' && this.primaryNodeId.length > 0 && this.selectedEdgeId.length === 0) {
+      Scroll() {
+        Row({ space: 6 }) {
+          if (this.editingNodeId.length > 0) {
+            Button('Save')
+              .id('free-canvas-node-edit-save')
+              .type(ButtonType.Normal)
+              .focusable(false)
+              .height(36)
+              .onClick((): void => {
+                this.commitNodeEdit();
+              })
+            Button('Cancel')
+              .id('free-canvas-node-edit-cancel')
+              .type(ButtonType.Normal)
+              .focusable(false)
+              .height(36)
+              .onClick((): void => {
+                this.cancelNodeEdit();
+              })
+          } else {
+            Button('Edit')
+              .id('free-canvas-node-edit')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.editSelectedNode();
+              })
+            Button('Open')
+              .id('free-canvas-node-activate')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.activateSelectedNode();
+              })
+            this.NodeColorButton('1', '#FFFFE4E6')
+            this.NodeColorButton('2', '#FFFFEDD5')
+            this.NodeColorButton('3', '#FFFEF9C3')
+            this.NodeColorButton('4', '#FFDCFCE7')
+            this.NodeColorButton('5', '#FFE0F2FE')
+            this.NodeColorButton('6', '#FFEDE9FE')
+            Button('Back')
+              .id('free-canvas-node-backward')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.reorderSelectedNode('backward');
+              })
+            Button('Front')
+              .id('free-canvas-node-forward')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.reorderSelectedNode('forward');
+              })
+            Button('Bottom')
+              .id('free-canvas-node-bottom')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.reorderSelectedNode('bottom');
+              })
+            Button('Top')
+              .id('free-canvas-node-top')
+              .type(ButtonType.Normal)
+              .height(36)
+              .onClick((): void => {
+                this.reorderSelectedNode('top');
+              })
+          }
+        }
+        .height(48)
+        .padding({ left: 8, right: 8 })
+      }
+      .width('100%')
+      .height(48)
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .backgroundColor('#F7FFFFFF')
+      .border({ width: { bottom: 1 }, color: '#FFD7DCE2' })
+      .position({ x: 0, y: 0 })
+    }
+  }
+
+  @Builder
+  private SaveStatusBadge() {
+    if (this.saveStatus === 'pending') {
+      Text('Saving')
+        .id('free-canvas-save-pending')
+        .fontSize(12)
+        .fontColor('#FF5D6670')
+        .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+        .backgroundColor('#EEFFFFFF')
+        .borderRadius(4)
+        .position({ x: Math.max(8, this.containerWidth - 78), y: Math.max(8, this.containerHeight - 40) })
+    } else if (this.saveStatus === 'failed') {
+      Button('Retry')
+        .id('free-canvas-save-retry')
+        .type(ButtonType.Normal)
+        .height(32)
+        .fontSize(12)
+        .fontColor('#FFC01C28')
+        .backgroundColor('#EEFFFFFF')
+        .position({ x: Math.max(8, this.containerWidth - 76), y: Math.max(8, this.containerHeight - 40) })
+        .onClick((): void => {
+          this.retrySave();
+        })
+    }
+  }
+
+  @Builder
   private Marquee() {
     if (this.marqueeRect !== undefined) {
       Rect()
@@ -1236,7 +1572,9 @@ export struct FreeCanvas {
       this.PrimaryConnectionAnchors()
       this.SelectedEdgeEndpoints()
       this.Marquee()
+      this.SelectedNodeToolbar()
       this.SelectedEdgeToolbar()
+      this.SaveStatusBadge()
     }
     .width('100%')
     .height('100%')

@@ -4,7 +4,8 @@ import {
   FreeCanvas,
   FreeCanvasChangeEvent,
   FreeCanvasController,
-  FreeCanvasInteractionMode
+  FreeCanvasInteractionMode,
+  FreeCanvasSaveResult
 } from '@ohos/mind-elixir';
 
 const DEMO_DOCUMENT: CanvasDocument = {
@@ -43,6 +44,10 @@ const DEMO_NODE_BUILDER: WrappedBuilder<[CanvasTextNode, Object]> = wrapBuilder(
 struct Index {
   @Local private document: CanvasDocument = DEMO_DOCUMENT;
   @Local private mode: FreeCanvasInteractionMode = 'select';
+  @Local private revision: number = 0;
+  @Local private saveResult: FreeCanvasSaveResult | undefined = undefined;
+  @Local private activatedNodeId: string = '';
+  @Local private failNextSave: boolean = false;
   private readonly canvasController: FreeCanvasController = new FreeCanvasController();
 
   private setMode(mode: FreeCanvasInteractionMode): void {
@@ -51,7 +56,14 @@ struct Index {
   }
 
   private acceptChange(event: FreeCanvasChangeEvent): void {
+    if (this.failNextSave) {
+      this.failNextSave = false;
+      this.saveResult = { requestId: event.requestId, status: 'failure', message: 'Simulated failure' };
+      return;
+    }
     this.document = event.document;
+    this.revision++;
+    this.saveResult = { requestId: event.requestId, status: 'success', revision: this.revision };
   }
 
   build() {
@@ -81,6 +93,31 @@ struct Index {
             .type(ButtonType.Normal)
             .onClick((): void => {
               this.canvasController.redo();
+            })
+          Button('Add')
+            .id('toolbar-add')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.addTextNode('');
+            })
+          Button('Edit')
+            .id('toolbar-edit')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.editSelectedNode();
+            })
+          Button('Open')
+            .id('toolbar-open')
+            .type(ButtonType.Normal)
+            .onClick((): void => {
+              this.canvasController.activateSelectedNode();
+            })
+          Button('Fail next')
+            .id('toolbar-fail-next-save')
+            .type(ButtonType.Normal)
+            .fontColor(this.failNextSave ? '#FFC01C28' : '#FF20252B')
+            .onClick((): void => {
+              this.failNextSave = true;
             })
           Button('Copy')
             .id('toolbar-copy')
@@ -143,11 +180,26 @@ struct Index {
       .scrollBar(BarState.Off)
       .backgroundColor(Color.White)
 
+      if (this.activatedNodeId.length > 0) {
+        Text('Activated: ' + this.activatedNodeId)
+          .id('node-activation-status')
+          .width('100%')
+          .height(28)
+          .padding({ left: 12, right: 12 })
+          .fontSize(12)
+          .fontColor('#FF5D6670')
+      }
+
       FreeCanvas({
         document: this.document,
         controller: this.canvasController,
         nodeContentBuilder: DEMO_NODE_BUILDER,
-        onChangeComplete: (event: FreeCanvasChangeEvent): void => this.acceptChange(event)
+        committedRevision: this.revision,
+        saveResult: this.saveResult,
+        onChangeComplete: (event: FreeCanvasChangeEvent): void => this.acceptChange(event),
+        onNodeActivate: (nodeId: string): void => {
+          this.activatedNodeId = nodeId;
+        }
       })
         .layoutWeight(1)
         .width('100%')

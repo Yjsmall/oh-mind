@@ -27,6 +27,19 @@ export default function freeCanvasUiTest() {
       expect(after.left > before.left).assertEqual(true);
     });
 
+    it('pansCanvasWhenGestureStartsOnNodeInPanMode', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'toolbar-pan')).click();
+      let source = await component(driver, 'free-canvas-node-source');
+      let before = await source.getBounds();
+      await driver.drag((before.left + before.right) / 2, (before.top + before.bottom) / 2,
+        (before.left + before.right) / 2 + 40, (before.top + before.bottom) / 2 + 10, 600);
+      await driver.delayMs(UI_SETTLE_MS);
+      source = await component(driver, 'free-canvas-node-source');
+      const after = await source.getBounds();
+      expect(after.left > before.left).assertEqual(true);
+    });
+
     it('pinchesCanvasAroundItsCenter', 0, async () => {
       const driver = Driver.create();
       const canvas = await component(driver, 'free-canvas');
@@ -121,6 +134,35 @@ export default function freeCanvasUiTest() {
       await driver.delayMs(UI_SETTLE_MS);
       const copies = await driver.findComponents(ON.id('free-canvas-node-source-copy-1'));
       expect(copies.length).assertEqual(0);
+    });
+
+    it('createsEditsStylesLayersAndActivatesTextNode', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'toolbar-select')).click();
+      const toolbar = await component(driver, 'main-toolbar');
+      await (await toolbar.scrollSearch(ON.id('toolbar-add'))).click();
+      const editor = await component(driver, 'free-canvas-node-editor');
+      await editor.inputText('# Device note');
+      await (await component(driver, 'free-canvas-node-edit-save')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await driver.findComponents(ON.id('free-canvas-node-editor'))).length).assertEqual(0);
+      await (await component(driver, 'free-canvas-node-color-5')).click();
+      await (await component(driver, 'free-canvas-node-top')).click();
+      await (await component(driver, 'free-canvas-node-activate')).click();
+      expect((await component(driver, 'node-activation-status')) !== undefined).assertEqual(true);
+    });
+
+    it('retainsFailedDraftAndRetriesSave', 0, async () => {
+      const driver = Driver.create();
+      await (await component(driver, 'toolbar-select')).click();
+      await (await component(driver, 'free-canvas-node-source')).click();
+      const toolbar = await component(driver, 'main-toolbar');
+      await (await toolbar.scrollSearch(ON.id('toolbar-fail-next-save'))).click();
+      await (await component(driver, 'free-canvas-node-color-4')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      await (await component(driver, 'free-canvas-save-retry')).click();
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await driver.findComponents(ON.id('free-canvas-save-retry'))).length).assertEqual(0);
     });
   });
 }

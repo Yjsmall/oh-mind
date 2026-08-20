@@ -2,7 +2,7 @@
 
 `@ohos/mind-elixir` 提供 CardNote 使用的 JSON Canvas 核心和 ArkUI V2 自由画布组件。2.0 是不兼容重构，旧树状 `MindElixir`、`MindElixirCore` 和 `NodeObj` API 已删除。
 
-`FreeCanvas` 在 Canvas 层绘制连线，并在上层定位原生 ArkUI 节点内容。当前支持单选、多选、框选、节点拖拽、八向缩放、画布平移、双指和滚轮缩放、适应内容、视口复位与方向键微调。四边锚点可创建连线，选中连线后可编辑标签、设置四种方向、删除或拖拽端点重连。控制器还提供复制、删除、撤销重做、对齐、行列排列、等距分布和显式确定性自动整理。手势草稿留在组件内部，每个完整操作只向宿主发出一次候选快照。
+`FreeCanvas` 在 Canvas 层绘制连线，并在上层定位原生 ArkUI 节点内容。当前支持文本节点新建与编辑、颜色与层级、单选、多选、框选、节点拖拽、八向缩放、画布平移、双指和滚轮缩放、适应内容、视口复位与方向键微调。四边锚点可创建连线，选中连线后可编辑标签、设置四种方向、删除或拖拽端点重连。控制器还提供复制、删除、撤销重做、对齐、行列排列、等距分布和显式确定性自动整理。手势和正文编辑草稿留在组件内部，每个完整操作只向宿主发出一次保存请求。
 
 ## 数据契约
 
@@ -75,21 +75,30 @@ const json: string = serializeCanvasJson(snapshot);
 @ComponentV2
 struct MindMapView {
   @Require @Param document: CanvasDocument;
+  @Require @Param revision: number;
+  @Require @Param saveResult: FreeCanvasSaveResult | undefined;
   private readonly canvasController = new FreeCanvasController();
 
   build() {
     FreeCanvas({
       document: this.document,
       controller: this.canvasController,
+      committedRevision: this.revision,
+      saveResult: this.saveResult,
       onChangeComplete: (event: FreeCanvasChangeEvent): void => {
-        // 把 event.document 提交到宿主持久化边界。
+        // 使用 event.requestId 和 event.baseRevision 持久化 event.document。
+      },
+      onNodeActivate: (nodeId: string): void => {
+        // 由宿主解析引用并导航。
       }
     })
   }
 }
 ```
 
-控制器除视口和选择命令外，还提供 `undo`、`redo`、`copySelection`、`deleteSelection`、`alignSelection`、`arrangeSelection`、`distributeSelection`、`autoArrange`、`setSelectedEdgeLabel` 和 `setSelectedEdgeDirection`；`canUndo` 与 `canRedo` 返回组件会话状态。宿主可通过 `nodeContentBuilder` 传入 `WrappedBuilder<[CanvasTextNode, Object]>`，使用原生 ArkUI 展示 Markdown/LaTeX；不传时使用纯文本回退。组件不访问持久化、PDF 状态、ArkWeb 或原生解析模块。
+每个完成事件都包含单调且唯一的 `requestId`、最后确认的 `baseRevision` 和不可变候选文档。宿主应通过 `saveResult` 回传匹配的 `FreeCanvasSaveResult`；只有成功结果会推进已确认 revision。失败时组件保留可见且可重试的草稿，重复或乱序结果不能让会话状态倒退。串行持久化与权威已提交快照仍由宿主负责。
+
+控制器除视口和选择命令外，还提供 `addTextNode`、`editSelectedNode`、`commitNodeEdit`、`cancelNodeEdit`、`setSelectedNodesColor`、`reorderSelectedNode`、`activateSelectedNode`、`retrySave`、撤销重做、复制删除、布局与连线编辑。节点激活只发出节点 ID，不修改快照。宿主可通过 `nodeContentBuilder` 传入 `WrappedBuilder<[CanvasTextNode, Object]>`，使用原生 ArkUI 展示 Markdown/LaTeX；不传时使用纯文本回退。组件不访问持久化、PDF 状态、ArkWeb 或原生解析模块。
 
 撤销历史有界且只存在于会话中。一次完整拖拽、缩放、视口手势、连线操作、复制删除或布局命令最多产生一个历史项。普通快照加载不会调用自动整理，只有显式 `autoArrange` 命令会改变布局。
 

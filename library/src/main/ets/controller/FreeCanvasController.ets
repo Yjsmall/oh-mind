@@ -3,6 +3,7 @@ import {
   CanvasArrangement,
   CanvasDistribution
 } from '../geometry/CanvasEditingGeometry';
+import { CanvasNodeLayerAction } from '../editing/CanvasNodeEditing';
 
 export type FreeCanvasInteractionMode = 'select' | 'pan';
 export type FreeCanvasEdgeDirection = 'forward' | 'reverse' | 'none' | 'both';
@@ -22,6 +23,14 @@ export interface FreeCanvasControllerBinding {
   readonly arrangeSelection: (arrangement: CanvasArrangement) => boolean;
   readonly distributeSelection: (distribution: CanvasDistribution) => boolean;
   readonly autoArrange: () => boolean;
+  readonly addTextNode: (text: string) => boolean;
+  readonly editSelectedNode: () => boolean;
+  readonly commitNodeEdit: () => boolean;
+  readonly cancelNodeEdit: () => boolean;
+  readonly setSelectedNodesColor: (color?: string) => boolean;
+  readonly reorderSelectedNode: (action: CanvasNodeLayerAction) => boolean;
+  readonly activateSelectedNode: () => boolean;
+  readonly retrySave: () => boolean;
   readonly setSelectedEdgeLabel: (label: string) => boolean;
   readonly setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection) => boolean;
 }
@@ -93,6 +102,38 @@ export class FreeCanvasController {
 
   autoArrange(): boolean {
     return this.binding?.autoArrange() ?? false;
+  }
+
+  addTextNode(text: string = ''): boolean {
+    return this.binding?.addTextNode(text) ?? false;
+  }
+
+  editSelectedNode(): boolean {
+    return this.binding?.editSelectedNode() ?? false;
+  }
+
+  commitNodeEdit(): boolean {
+    return this.binding?.commitNodeEdit() ?? false;
+  }
+
+  cancelNodeEdit(): boolean {
+    return this.binding?.cancelNodeEdit() ?? false;
+  }
+
+  setSelectedNodesColor(color?: string): boolean {
+    return this.binding?.setSelectedNodesColor(color) ?? false;
+  }
+
+  reorderSelectedNode(action: CanvasNodeLayerAction): boolean {
+    return this.binding?.reorderSelectedNode(action) ?? false;
+  }
+
+  activateSelectedNode(): boolean {
+    return this.binding?.activateSelectedNode() ?? false;
+  }
+
+  retrySave(): boolean {
+    return this.binding?.retrySave() ?? false;
   }
 
   setSelectedEdgeLabel(label: string): boolean {
