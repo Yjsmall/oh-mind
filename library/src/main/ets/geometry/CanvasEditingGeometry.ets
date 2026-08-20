@@ -11,9 +11,12 @@ import {
 import { validateCanvasDocument } from '../model/CanvasValidation';
 import {
   CanvasPoint,
-  getCanvasNodeAnchor,
-  worldToScreen
+  getCanvasNodeAnchor
 } from './FreeCanvasGeometry';
+import {
+  distanceToCanvasBezierCurve,
+  getCanvasEdgeScreenCurve
+} from './CanvasEdgeGeometry';
 
 export type CanvasAlignment =
   'left' | 'horizontalCenter' | 'right' | 'top' | 'verticalCenter' | 'bottom';
@@ -334,7 +337,7 @@ export function distanceToCanvasSegment(point: CanvasPoint, start: CanvasPoint, 
 }
 
 export function findCanvasEdgeAt(document: CanvasDocument, viewport: CanvasViewport, screenPoint: CanvasPoint,
-  tolerance: number = 10): CanvasEdge | undefined {
+  tolerance: number = 12): CanvasEdge | undefined {
   for (let index = document.edges.length - 1; index >= 0; index--) {
     const edge = document.edges[index];
     const fromNode = document.nodes.find((node: CanvasTextNode): boolean => node.id === edge.fromNode);
@@ -342,9 +345,8 @@ export function findCanvasEdgeAt(document: CanvasDocument, viewport: CanvasViewp
     if (fromNode === undefined || toNode === undefined) {
       continue;
     }
-    const from = worldToScreen(getCanvasNodeAnchor(fromNode, edge.fromSide, toNode), viewport);
-    const to = worldToScreen(getCanvasNodeAnchor(toNode, edge.toSide, fromNode), viewport);
-    if (distanceToCanvasSegment(screenPoint, from, to) <= tolerance) {
+    const curve = getCanvasEdgeScreenCurve(fromNode, edge.fromSide, toNode, edge.toSide, viewport);
+    if (distanceToCanvasBezierCurve(screenPoint, curve) <= tolerance) {
       return cloneCanvasEdge(edge);
     }
   }

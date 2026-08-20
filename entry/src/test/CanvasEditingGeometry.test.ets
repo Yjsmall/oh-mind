@@ -9,6 +9,8 @@ import {
   copyCanvasSelection,
   deleteCanvasSelection,
   distributeCanvasNodes,
+  getCanvasBezierPointAt,
+  getCanvasEdgeScreenCurve,
   findCanvasConnectionTarget,
   findCanvasEdgeAt
 } from '@ohos/mind-elixir';
@@ -115,9 +117,13 @@ export default function canvasEditingGeometryTest() {
     });
 
     it('hitTestsEdgesInScreenCoordinates', 0, () => {
-      const edge = findCanvasEdgeAt(editingDocument(), { x: 10, y: 20, scale: 1 }, { x: 160, y: 95 }, 20);
+      const source = editingDocument();
+      const curve = getCanvasEdgeScreenCurve(source.nodes[0], 'right', source.nodes[1], 'left',
+        { x: 10, y: 20, scale: 1 });
+      const midpoint = getCanvasBezierPointAt(curve, 0.5);
+      const edge = findCanvasEdgeAt(source, { x: 10, y: 20, scale: 1 }, midpoint, 12);
       expect(edge?.id).assertEqual('a-b');
-      const missing = findCanvasEdgeAt(editingDocument(), { x: 10, y: 20, scale: 1 }, { x: 800, y: 600 }, 10);
+      const missing = findCanvasEdgeAt(source, { x: 10, y: 20, scale: 1 }, { x: 800, y: 600 }, 10);
       expect(missing === undefined).assertEqual(true);
     });
 

@@ -106,6 +106,11 @@ export default function freeCanvasUiTest() {
       await label.inputText('new relation');
       await (await component(driver, 'free-canvas-edge-label-save')).click();
       await (await component(driver, 'free-canvas-edge-both')).click();
+      const edgeToolbar = await component(driver, 'free-canvas-edge-toolbar');
+      await (await edgeToolbar.scrollSearch(ON.id('free-canvas-edge-color-5'))).click();
+      const customColor = await edgeToolbar.scrollSearch(ON.id('free-canvas-edge-color-custom'));
+      await customColor.inputText('#2367A8');
+      await (await edgeToolbar.scrollSearch(ON.id('free-canvas-edge-color-apply'))).click();
 
       const endpoint = await component(driver, 'free-canvas-edge-to');
       const endpointCenter = await endpoint.getBoundsCenter();

@@ -33,6 +33,7 @@ export interface FreeCanvasControllerBinding {
   readonly retrySave: () => boolean;
   readonly setSelectedEdgeLabel: (label: string) => boolean;
   readonly setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection) => boolean;
+  readonly setSelectedEdgeColor: (color?: string) => boolean;
 }
 
 export class FreeCanvasController {
@@ -142,5 +143,9 @@ export class FreeCanvasController {
 
   setSelectedEdgeDirection(direction: FreeCanvasEdgeDirection): boolean {
     return this.binding?.setSelectedEdgeDirection(direction) ?? false;
+  }
+
+  setSelectedEdgeColor(color?: string): boolean {
+    return this.binding?.setSelectedEdgeColor(color) ?? false;
   }
 }

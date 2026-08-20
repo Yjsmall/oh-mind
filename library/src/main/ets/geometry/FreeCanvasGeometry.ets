@@ -8,8 +8,8 @@ import {
   cloneCanvasTextNode
 } from '../model/CanvasModel';
 
-export const FREE_CANVAS_MIN_SCALE: number = 0.2;
-export const FREE_CANVAS_MAX_SCALE: number = 4;
+export const FREE_CANVAS_MIN_SCALE: number = 0.1;
+export const FREE_CANVAS_MAX_SCALE: number = 2.5;
 export const FREE_CANVAS_MIN_NODE_WIDTH: number = 80;
 export const FREE_CANVAS_MIN_NODE_HEIGHT: number = 48;
 export const FREE_CANVAS_FIT_PADDING: number = 48;
@@ -82,13 +82,24 @@ export function panCanvasViewport(viewport: CanvasViewport, offsetX: number, off
 
 export function zoomCanvasViewportAt(viewport: CanvasViewport, screenPoint: CanvasPoint,
   requestedScale: number): CanvasViewport {
+  return zoomCanvasViewportBetweenPoints(viewport, screenPoint, screenPoint, requestedScale);
+}
+
+export function zoomCanvasViewportBetweenPoints(viewport: CanvasViewport, initialScreenPoint: CanvasPoint,
+  currentScreenPoint: CanvasPoint, requestedScale: number): CanvasViewport {
   const scale = clampCanvasScale(requestedScale);
-  const worldPoint = screenToWorld(screenPoint, viewport);
+  const worldPoint = screenToWorld(initialScreenPoint, viewport);
   return {
-    x: screenPoint.x - worldPoint.x * scale,
-    y: screenPoint.y - worldPoint.y * scale,
+    x: currentScreenPoint.x - worldPoint.x * scale,
+    y: currentScreenPoint.y - worldPoint.y * scale,
     scale
   };
+}
+
+export function zoomCanvasViewportByWheel(viewport: CanvasViewport, screenPoint: CanvasPoint,
+  deltaY: number): CanvasViewport {
+  const scale = Number((viewport.scale * Math.exp(-deltaY * 0.0015)).toFixed(2));
+  return zoomCanvasViewportAt(viewport, screenPoint, scale);
 }
 
 export function normalizeCanvasRect(start: CanvasPoint, end: CanvasPoint): CanvasRect {
@@ -230,8 +241,8 @@ export function setDocumentCanvasViewport(document: CanvasDocument, viewport: Ca
   };
 }
 
-export function getCanvasNodeAnchor(node: CanvasTextNode, side: CanvasSide | undefined,
-  toward: CanvasTextNode): CanvasPoint {
+export function resolveCanvasNodeAnchorSide(node: CanvasTextNode, side: CanvasSide | undefined,
+  toward: CanvasTextNode): CanvasSide {
   let resolvedSide = side;
   if (resolvedSide === undefined) {
     const nodeCenterX = node.x + node.width / 2;
@@ -246,7 +257,12 @@ export function getCanvasNodeAnchor(node: CanvasTextNode, side: CanvasSide | und
       resolvedSide = verticalDistance >= 0 ? 'bottom' : 'top';
     }
   }
-  switch (resolvedSide) {
+  return resolvedSide;
+}
+
+export function getCanvasNodeAnchor(node: CanvasTextNode, side: CanvasSide | undefined,
+  toward: CanvasTextNode): CanvasPoint {
+  switch (resolveCanvasNodeAnchorSide(node, side, toward)) {
     case 'top':
       return { x: node.x + node.width / 2, y: node.y };
     case 'right':

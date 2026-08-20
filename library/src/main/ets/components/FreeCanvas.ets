@@ -25,13 +25,21 @@ import {
   panCanvasViewport,
   replaceCanvasNode,
   resizeCanvasNode,
+  resolveCanvasNodeAnchorSide,
   resolveCanvasViewport,
   screenToWorld,
   selectNodesInCanvasRect,
   setDocumentCanvasViewport,
   worldToScreen,
-  zoomCanvasViewportAt
+  zoomCanvasViewportBetweenPoints,
+  zoomCanvasViewportByWheel
 } from '../geometry/FreeCanvasGeometry';
+import {
+  CanvasBezierCurve,
+  createCanvasBezierCurve,
+  getCanvasBezierPointAt,
+  getCanvasEdgeScreenCurve
+} from '../geometry/CanvasEdgeGeometry';
 import {
   CanvasAlignment,
   CanvasArrangement,
@@ -100,6 +108,7 @@ export interface FreeCanvasChangeEvent {
 
 interface CanvasConnectionDraft {
   readonly fixedPoint: CanvasPoint;
+  readonly fixedSide: CanvasSide;
   readonly startMovingPoint: CanvasPoint;
   readonly movingPoint: CanvasPoint;
   readonly sourceNodeId: string;
@@ -164,6 +173,14 @@ function edgeStroke(color: string | undefined): string {
   }
 }
 
+function customEdgeColorDraft(color: string | undefined): string {
+  return color !== undefined && /^#[0-9A-Fa-f]{6}$/.test(color) ? color.toUpperCase() : '';
+}
+
+function isValidCustomEdgeColor(color: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(color.trim());
+}
+
 @ComponentV2
 export struct FreeCanvas {
   @Require @Param document: CanvasDocument = EMPTY_DOCUMENT;
@@ -182,7 +199,9 @@ export struct FreeCanvas {
   @Local private primaryNodeId: string = '';
   @Local private selectedEdgeId: string = '';
   @Local private edgeLabelDraft: string = '';
+  @Local private edgeColorDraft: string = '';
   @Local private edgeLabelEditing: boolean = false;
+  @Local private hoveredEdgeId: string = '';
   @Local private editingNodeId: string = '';
   @Local private nodeTextDraft: string = '';
   @Local private saveStatus: FreeCanvasSaveStatus = 'saved';
@@ -197,6 +216,7 @@ export struct FreeCanvas {
   private inputSnapshotJson: string = '';
   private panStartViewport: CanvasViewport = { x: 0, y: 0, scale: 1 };
   private pinchStartViewport: CanvasViewport = { x: 0, y: 0, scale: 1 };
+  private pinchStartCenter: CanvasPoint = { x: 0, y: 0 };
   private marqueeStart: CanvasPoint = { x: 0, y: 0 };
   private dragStartPositions: CanvasNodePosition[] = [];
   private resizeStartNode: CanvasTextNode | undefined = undefined;
@@ -237,7 +257,8 @@ export struct FreeCanvas {
     retrySave: (): boolean => this.retrySave(),
     setSelectedEdgeLabel: (label: string): boolean => this.setSelectedEdgeLabel(label),
     setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection): boolean =>
-      this.setSelectedEdgeDirection(direction)
+      this.setSelectedEdgeDirection(direction),
+    setSelectedEdgeColor: (color?: string): boolean => this.setSelectedEdgeColor(color)
   };
 
   aboutToAppear(): void {
@@ -294,8 +315,10 @@ export struct FreeCanvas {
     if (!this.draftDocument.edges.some((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId)) {
       this.selectedEdgeId = '';
       this.edgeLabelDraft = '';
+      this.edgeColorDraft = '';
     } else {
       this.edgeLabelDraft = this.selectedEdge()?.label ?? '';
+      this.edgeColorDraft = customEdgeColorDraft(this.selectedEdge()?.color);
     }
     this.refresh();
   }
@@ -337,6 +360,7 @@ export struct FreeCanvas {
     this.primaryNodeId = '';
     this.selectedEdgeId = '';
     this.edgeLabelDraft = '';
+    this.edgeColorDraft = '';
     this.edgeLabelEditing = false;
     this.cancelNodeEdit();
   }
@@ -392,8 +416,10 @@ export struct FreeCanvas {
     if (!this.draftDocument.edges.some((edge: CanvasEdge): boolean => edge.id === this.selectedEdgeId)) {
       this.selectedEdgeId = '';
       this.edgeLabelDraft = '';
+      this.edgeColorDraft = '';
     } else {
       this.edgeLabelDraft = this.selectedEdge()?.label ?? '';
+      this.edgeColorDraft = customEdgeColorDraft(this.selectedEdge()?.color);
     }
   }
 
@@ -440,6 +466,7 @@ export struct FreeCanvas {
     this.primaryNodeId = this.selectedNodeIds[this.selectedNodeIds.length - 1];
     this.selectedEdgeId = '';
     this.edgeLabelDraft = '';
+    this.edgeColorDraft = '';
     const changed = this.commitCandidate(result.document, 'copy');
     if (!changed) {
       this.selectedNodeIds = previousSelection;
@@ -630,6 +657,37 @@ export struct FreeCanvas {
     }), 'edgeUpdate');
   }
 
+  private setSelectedEdgeColor(color?: string): boolean {
+    const edge = this.selectedEdge();
+    if (edge === undefined) {
+      return false;
+    }
+    const changed = this.commitCandidate(applyCanvasCommand(this.draftDocument, {
+      kind: 'updateEdge',
+      edgeId: edge.id,
+      edge: {
+        id: edge.id,
+        fromNode: edge.fromNode,
+        fromSide: edge.fromSide,
+        fromEnd: edge.fromEnd,
+        toNode: edge.toNode,
+        toSide: edge.toSide,
+        toEnd: edge.toEnd,
+        label: edge.label,
+        color
+      }
+    }), 'edgeUpdate');
+    if (changed) {
+      this.edgeColorDraft = customEdgeColorDraft(color);
+    }
+    return changed;
+  }
+
+  private applyCustomEdgeColor(): boolean {
+    const value = this.edgeColorDraft.trim();
+    return isValidCustomEdgeColor(value) && this.setSelectedEdgeColor(value.toUpperCase());
+  }
+
   private selectNode(nodeId: string, event: ClickEvent): void {
     if (this.interactionMode !== 'select' || this.editingNodeId.length > 0) {
       return;
@@ -804,16 +862,17 @@ export struct FreeCanvas {
     this.marqueeRect = undefined;
   }
 
-  private beginPinch(): void {
+  private beginPinch(event: GestureEvent): void {
     this.pinchStartViewport = this.viewport();
+    this.pinchStartCenter = { x: event.pinchCenterX, y: event.pinchCenterY };
     this.pinchStartDocument = cloneCanvasDocument(this.draftDocument);
   }
 
   private updatePinch(event: GestureEvent): void {
-    this.updateViewport(zoomCanvasViewportAt(this.pinchStartViewport, {
+    this.updateViewport(zoomCanvasViewportBetweenPoints(this.pinchStartViewport, this.pinchStartCenter, {
       x: event.pinchCenterX,
       y: event.pinchCenterY
-    }, this.pinchStartViewport.scale * event.scale));
+    }, Number((this.pinchStartViewport.scale * event.scale).toFixed(2))));
   }
 
   private endPinch(): void {
@@ -844,8 +903,7 @@ export struct FreeCanvas {
       if (vertical === 0) {
         return;
       }
-      const factor: number = vertical > 0 ? 0.9 : 1.1;
-      this.updateViewport(zoomCanvasViewportAt(viewport, { x: event.x, y: event.y }, viewport.scale * factor));
+      this.updateViewport(zoomCanvasViewportByWheel(viewport, { x: event.x, y: event.y }, vertical));
       this.axisChanged = true;
       return;
     }
@@ -947,6 +1005,7 @@ export struct FreeCanvas {
   private beginConnection(node: CanvasTextNode, side: CanvasSide): void {
     this.connectionDraft = {
       fixedPoint: this.edgeAnchorPoint(node, side),
+      fixedSide: side,
       startMovingPoint: this.connectionHandlePoint(node, side),
       movingPoint: this.connectionHandlePoint(node, side),
       sourceNodeId: node.id,
@@ -961,6 +1020,7 @@ export struct FreeCanvas {
     }
     this.connectionDraft = {
       fixedPoint: this.connectionDraft.fixedPoint,
+      fixedSide: this.connectionDraft.fixedSide,
       startMovingPoint: this.connectionDraft.startMovingPoint,
       movingPoint: {
         x: this.connectionDraft.startMovingPoint.x + event.offsetX,
@@ -1004,6 +1064,7 @@ export struct FreeCanvas {
     this.primaryNodeId = '';
     this.selectedEdgeId = edgeId;
     this.edgeLabelDraft = '';
+    this.edgeColorDraft = '';
     this.commitCandidate(applyCanvasCommand(this.draftDocument, { kind: 'addEdge', edge }), 'edgeAdd');
   }
 
@@ -1020,12 +1081,15 @@ export struct FreeCanvas {
     }
     const from = worldToScreen(getCanvasNodeAnchor(fromNode, edge.fromSide, toNode), this.viewport());
     const to = worldToScreen(getCanvasNodeAnchor(toNode, edge.toSide, fromNode), this.viewport());
+    const fromSide = resolveCanvasNodeAnchorSide(fromNode, edge.fromSide, toNode);
+    const toSide = resolveCanvasNodeAnchorSide(toNode, edge.toSide, fromNode);
     this.connectionDraft = {
       fixedPoint: end === 'from' ? to : from,
+      fixedSide: end === 'from' ? toSide : fromSide,
       startMovingPoint: end === 'from' ? from : to,
       movingPoint: end === 'from' ? from : to,
       sourceNodeId: end === 'from' ? edge.fromNode : edge.toNode,
-      sourceSide: end === 'from' ? edge.fromSide ?? 'right' : edge.toSide ?? 'left',
+      sourceSide: end === 'from' ? fromSide : toSide,
       reconnectEdgeId: edge.id,
       reconnectEnd: end
     };
@@ -1072,7 +1136,27 @@ export struct FreeCanvas {
     this.primaryNodeId = '';
     this.selectedEdgeId = edge.id;
     this.edgeLabelDraft = edge.label ?? '';
+    this.edgeColorDraft = customEdgeColorDraft(edge.color);
     this.refresh();
+  }
+
+  private handleMouse(event: MouseEvent): void {
+    if (this.interactionMode !== 'select') {
+      return;
+    }
+    const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: event.x, y: event.y });
+    const nextHoveredEdgeId = edge?.id ?? '';
+    if (nextHoveredEdgeId !== this.hoveredEdgeId) {
+      this.hoveredEdgeId = nextHoveredEdgeId;
+      this.refresh();
+    }
+  }
+
+  private clearEdgeHover(): void {
+    if (this.hoveredEdgeId.length > 0) {
+      this.hoveredEdgeId = '';
+      this.refresh();
+    }
   }
 
   private nodeScreenRect(node: CanvasTextNode): CanvasRect {
@@ -1103,6 +1187,26 @@ export struct FreeCanvas {
     return { x, y };
   }
 
+  private inferDraftEndSide(start: CanvasPoint, end: CanvasPoint): CanvasSide {
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
+    if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+      return deltaX >= 0 ? 'left' : 'right';
+    }
+    return deltaY >= 0 ? 'top' : 'bottom';
+  }
+
+  private connectionDraftCurve(draft: CanvasConnectionDraft): CanvasBezierCurve {
+    if (draft.reconnectEnd === 'from') {
+      return createCanvasBezierCurve(draft.movingPoint, draft.sourceSide,
+        draft.fixedPoint, draft.fixedSide, this.viewport().scale);
+    }
+    const movingSide = draft.reconnectEnd === 'to' ? draft.sourceSide :
+      this.inferDraftEndSide(draft.fixedPoint, draft.movingPoint);
+    return createCanvasBezierCurve(draft.fixedPoint, draft.fixedSide,
+      draft.movingPoint, movingSide, this.viewport().scale);
+  }
+
   private drawEdges(): void {
     if (this.containerWidth <= 0 || this.containerHeight <= 0) {
       return;
@@ -1120,35 +1224,39 @@ export struct FreeCanvas {
       if (fromNode === undefined || toNode === undefined) {
         continue;
       }
-      const from = worldToScreen(getCanvasNodeAnchor(fromNode, edge.fromSide, toNode), viewport);
-      const to = worldToScreen(getCanvasNodeAnchor(toNode, edge.toSide, fromNode), viewport);
+      const curve = getCanvasEdgeScreenCurve(fromNode, edge.fromSide, toNode, edge.toSide, viewport);
       const color = edge.id === this.selectedEdgeId ? SELECTED_EDGE_COLOR : edgeStroke(edge.color);
       this.context.strokeStyle = color;
       this.context.fillStyle = color;
-      this.context.lineWidth = edge.id === this.selectedEdgeId ? 3 : 1.5;
+      this.context.lineWidth = edge.id === this.selectedEdgeId ? 3 :
+        (edge.id === this.hoveredEdgeId ? 2.5 : 1.5);
       this.context.beginPath();
-      this.context.moveTo(from.x, from.y);
-      this.context.lineTo(to.x, to.y);
+      this.context.moveTo(curve.start.x, curve.start.y);
+      this.context.bezierCurveTo(curve.startControl.x, curve.startControl.y,
+        curve.endControl.x, curve.endControl.y, curve.end.x, curve.end.y);
       this.context.stroke();
       if (resolveCanvasEdgeToEnd(edge) === 'arrow') {
-        this.drawArrowHead(from, to);
+        this.drawArrowHead(curve.endControl, curve.end);
       }
       if (resolveCanvasEdgeFromEnd(edge) === 'arrow') {
-        this.drawArrowHead(to, from);
+        this.drawArrowHead(curve.startControl, curve.start);
       }
       if (edge.label !== undefined && edge.label.length > 0) {
-        this.context.fillText(edge.label, (from.x + to.x) / 2 + 6, (from.y + to.y) / 2 - 6);
+        const midpoint = getCanvasBezierPointAt(curve, 0.5);
+        this.context.fillText(edge.label, midpoint.x + 6, midpoint.y - 6);
       }
     }
     if (this.connectionDraft !== undefined) {
+      const curve = this.connectionDraftCurve(this.connectionDraft);
       this.context.strokeStyle = CONNECTION_DRAFT_COLOR;
       this.context.fillStyle = CONNECTION_DRAFT_COLOR;
       this.context.lineWidth = 2;
       this.context.beginPath();
-      this.context.moveTo(this.connectionDraft.fixedPoint.x, this.connectionDraft.fixedPoint.y);
-      this.context.lineTo(this.connectionDraft.movingPoint.x, this.connectionDraft.movingPoint.y);
+      this.context.moveTo(curve.start.x, curve.start.y);
+      this.context.bezierCurveTo(curve.startControl.x, curve.startControl.y,
+        curve.endControl.x, curve.endControl.y, curve.end.x, curve.end.y);
       this.context.stroke();
-      this.drawArrowHead(this.connectionDraft.fixedPoint, this.connectionDraft.movingPoint);
+      this.drawArrowHead(curve.endControl, curve.end);
     }
   }
 
@@ -1333,6 +1441,26 @@ export struct FreeCanvas {
   }
 
   @Builder
+  private EdgeColorButton(color: string | undefined, background: string, idSuffix: string) {
+    Button() {
+      Circle()
+        .width(20)
+        .height(20)
+        .fill(background)
+        .stroke('#FF9AA3AD')
+        .strokeWidth(1)
+    }
+    .id('free-canvas-edge-color-' + idSuffix)
+    .type(ButtonType.Normal)
+    .width(36)
+    .height(36)
+    .backgroundColor(Color.Transparent)
+    .onClick((): void => {
+      this.setSelectedEdgeColor(color);
+    })
+  }
+
+  @Builder
   private SelectedEdgeToolbar() {
     if (this.interactionMode === 'select' && this.selectedEdgeId.length > 0) {
       Scroll() {
@@ -1389,6 +1517,35 @@ export struct FreeCanvas {
             .onClick((): void => {
               this.setSelectedEdgeDirection('both');
             })
+          this.EdgeColorButton(undefined, EDGE_COLOR, 'default')
+          this.EdgeColorButton('1', edgeStroke('1'), '1')
+          this.EdgeColorButton('2', edgeStroke('2'), '2')
+          this.EdgeColorButton('3', edgeStroke('3'), '3')
+          this.EdgeColorButton('4', edgeStroke('4'), '4')
+          this.EdgeColorButton('5', edgeStroke('5'), '5')
+          this.EdgeColorButton('6', edgeStroke('6'), '6')
+          TextInput({ text: this.edgeColorDraft, placeholder: '#RRGGBB' })
+            .id('free-canvas-edge-color-custom')
+            .width(112)
+            .height(36)
+            .maxLength(7)
+            .onFocus((): void => {
+              this.edgeLabelEditing = true;
+            })
+            .onBlur((): void => {
+              this.edgeLabelEditing = false;
+            })
+            .onChange((value: string): void => {
+              this.edgeColorDraft = value;
+            })
+          Button('Apply')
+            .id('free-canvas-edge-color-apply')
+            .type(ButtonType.Normal)
+            .height(36)
+            .enabled(isValidCustomEdgeColor(this.edgeColorDraft))
+            .onClick((): void => {
+              this.applyCustomEdgeColor();
+            })
           Button('Delete')
             .id('free-canvas-edge-delete')
             .type(ButtonType.Normal)
@@ -1401,6 +1558,7 @@ export struct FreeCanvas {
         .height(48)
         .padding({ left: 8, right: 8 })
       }
+      .id('free-canvas-edge-toolbar')
       .width('100%')
       .height(48)
       .scrollable(ScrollDirection.Horizontal)
@@ -1584,6 +1742,12 @@ export struct FreeCanvas {
     .focusable(true)
     .focusOnTouch(true)
     .onClick((event: ClickEvent): void => this.handleBackgroundClick(event))
+    .onMouse((event: MouseEvent): void => this.handleMouse(event))
+    .onHover((isHover: boolean): void => {
+      if (!isHover) {
+        this.clearEdgeHover();
+      }
+    })
     .onKeyEvent((event: KeyEvent): boolean => this.handleKey(event))
     .onAxisEvent((event?: AxisEvent): void => {
       if (event !== undefined) {
@@ -1604,7 +1768,7 @@ export struct FreeCanvas {
           .onActionEnd((): void => this.endBackgroundPan())
           .onActionCancel((): void => this.cancelBackgroundPan()),
         PinchGesture({ fingers: 2, distance: 2 })
-          .onActionStart((): void => this.beginPinch())
+          .onActionStart((event: GestureEvent): void => this.beginPinch(event))
           .onActionUpdate((event: GestureEvent): void => this.updatePinch(event))
           .onActionEnd((): void => this.endPinch())
           .onActionCancel((): void => this.cancelPinch())

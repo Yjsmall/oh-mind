@@ -88,11 +88,14 @@ export {
   replaceCanvasNode,
   resizeCanvasNode,
   resolveCanvasViewport,
+  resolveCanvasNodeAnchorSide,
   screenToWorld,
   selectNodesInCanvasRect,
   setDocumentCanvasViewport,
   worldToScreen,
-  zoomCanvasViewportAt
+  zoomCanvasViewportAt,
+  zoomCanvasViewportBetweenPoints,
+  zoomCanvasViewportByWheel
 } from './src/main/ets/geometry/FreeCanvasGeometry';
 export type {
   CanvasNodePosition,
@@ -101,6 +104,13 @@ export type {
   CanvasResizeHandle,
   CanvasSize
 } from './src/main/ets/geometry/FreeCanvasGeometry';
+export {
+  createCanvasBezierCurve,
+  distanceToCanvasBezierCurve,
+  getCanvasBezierPointAt,
+  getCanvasEdgeScreenCurve
+} from './src/main/ets/geometry/CanvasEdgeGeometry';
+export type { CanvasBezierCurve } from './src/main/ets/geometry/CanvasEdgeGeometry';
 export {
   CanvasEditingError,
   alignCanvasNodes,

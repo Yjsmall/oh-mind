@@ -16,7 +16,9 @@ import {
   selectNodesInCanvasRect,
   setDocumentCanvasViewport,
   worldToScreen,
-  zoomCanvasViewportAt
+  zoomCanvasViewportAt,
+  zoomCanvasViewportBetweenPoints,
+  zoomCanvasViewportByWheel
 } from '@ohos/mind-elixir';
 
 class ControllerProbe implements FreeCanvasControllerBinding {
@@ -57,6 +59,7 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   readonly retrySave = (): boolean => false;
   readonly setSelectedEdgeLabel = (): boolean => false;
   readonly setSelectedEdgeDirection = (): boolean => false;
+  readonly setSelectedEdgeColor = (): boolean => false;
 }
 
 function node(id: string, x: number, y: number, width: number = 200, height: number = 100): CanvasTextNode {
@@ -81,9 +84,29 @@ export default function freeCanvasGeometryTest() {
       const worldBefore = screenToWorld(anchor, before);
       const after = zoomCanvasViewportAt(before, anchor, 20);
       const worldAfter = screenToWorld(anchor, after);
-      expect(after.scale).assertEqual(4);
+      expect(after.scale).assertEqual(2.5);
       expect(worldAfter.x).assertEqual(worldBefore.x);
       expect(worldAfter.y).assertEqual(worldBefore.y);
+    });
+
+    it('tracksMovingPinchCenterWithoutChangingItsWorldAnchor', 0, () => {
+      const before: CanvasViewport = { x: 0, y: 0, scale: 1 };
+      const after = zoomCanvasViewportBetweenPoints(before, { x: 100, y: 80 }, { x: 140, y: 110 }, 2);
+      expect(after.scale).assertEqual(2);
+      expect(after.x).assertEqual(-60);
+      expect(after.y).assertEqual(-50);
+      const anchoredWorld = screenToWorld({ x: 140, y: 110 }, after);
+      expect(anchoredWorld.x).assertEqual(100);
+      expect(anchoredWorld.y).assertEqual(80);
+    });
+
+    it('usesExponentialWheelZoomAndClampsAtSiyuanBounds', 0, () => {
+      const before: CanvasViewport = { x: 0, y: 0, scale: 1 };
+      const after = zoomCanvasViewportByWheel(before, { x: 50, y: 40 }, 120);
+      expect(after.scale).assertEqual(0.84);
+      expect(screenToWorld({ x: 50, y: 40 }, after).x).assertEqual(50);
+      expect(zoomCanvasViewportByWheel(before, { x: 0, y: 0 }, 100000).scale).assertEqual(0.1);
+      expect(zoomCanvasViewportByWheel(before, { x: 0, y: 0 }, -100000).scale).assertEqual(2.5);
     });
 
     it('fitsContentIntoContainerWithPadding', 0, () => {
