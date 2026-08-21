@@ -36,6 +36,11 @@ import {
   zoomCanvasViewportByWheel
 } from '../geometry/FreeCanvasGeometry';
 import {
+  CanvasAlignmentGuide,
+  FREE_CANVAS_ALIGNMENT_THRESHOLD_VP,
+  resolveCanvasAlignmentGuides
+} from '../geometry/CanvasAlignmentGeometry';
+import {
   CanvasBezierCurve,
   createCanvasBezierCurve,
   getCanvasBezierPointAt,
@@ -45,7 +50,9 @@ import {
   CanvasAlignment,
   CanvasArrangement,
   CanvasConnectionTarget,
+  CanvasCopyResult,
   CanvasDistribution,
+  CanvasEditingError,
   alignCanvasNodes,
   arrangeCanvasNodes,
   autoArrangeCanvasNodes,
@@ -107,6 +114,7 @@ const ANCHOR_HALF: number = ANCHOR_SIZE / 2;
 const TOOLBAR_HEIGHT: number = 48;
 const TOOLBAR_EDGE_WIDTH: number = 430;
 const TOOLBAR_MULTI_WIDTH: number = 360;
+const EDGE_TOUCH_TOLERANCE: number = 24;
 const DEFAULT_NEW_NODE_WIDTH: number = 240;
 const DEFAULT_NEW_NODE_HEIGHT: number = 160;
 const EMPTY_DOCUMENT: CanvasDocument = { nodes: [], edges: [] };
@@ -249,6 +257,14 @@ export struct FreeCanvas {
   @Local private colorPopupVisible: boolean = false;
   @Local private alignPopupVisible: boolean = false;
   @Local private morePopupVisible: boolean = false;
+  @Local private alignmentGuides: ReadonlyArray<CanvasAlignmentGuide> = [];
+  // Measured window-space rects of the floating layers; hit testing uses these
+  // instead of width constants so localized or scaled content stays clickable.
+  @Local private edgeToolbarBounds: CanvasRect | undefined = undefined;
+  @Local private nodeToolbarBounds: CanvasRect | undefined = undefined;
+  @Local private colorPopupBounds: CanvasRect | undefined = undefined;
+  @Local private alignPopupBounds: CanvasRect | undefined = undefined;
+  @Local private morePopupBounds: CanvasRect | undefined = undefined;
 
   private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(new RenderingContextSettings(true));
   private inputSnapshotJson: string = '';
@@ -275,6 +291,7 @@ export struct FreeCanvas {
     }
   });
   private copySequence: number = 0;
+  private copySelectionFailed: boolean = false;
   private edgeSequence: number = 0;
   private nodeSequence: number = 0;
   private axisChanged: boolean = false;
@@ -557,17 +574,20 @@ export struct FreeCanvas {
     if (this.selectedNodeIds.length === 0) {
       return false;
     }
-    let namespace = '';
-    do {
+    let result: CanvasCopyResult | undefined = undefined;
+    while (result === undefined) {
       this.copySequence++;
-      namespace = 'copy-' + this.copySequence;
-    } while (this.draftDocument.nodes.some((node: CanvasTextNode): boolean =>
-      this.selectedNodeIds.some((nodeId: string): boolean => node.id === nodeId + '-' + namespace)) ||
-      this.draftDocument.edges.some((existingEdge: CanvasEdge): boolean =>
-        this.draftDocument.edges.some((selectedEdge: CanvasEdge): boolean =>
-          this.selectedNodeIds.includes(selectedEdge.fromNode) && this.selectedNodeIds.includes(selectedEdge.toNode) &&
-          existingEdge.id === selectedEdge.id + '-' + namespace)));
-    const result = copyCanvasSelection(this.draftDocument, this.selectedNodeIds, namespace);
+      try {
+        result = copyCanvasSelection(this.draftDocument, this.selectedNodeIds, 'copy-' + this.copySequence);
+      } catch (error) {
+        const editingError = error as CanvasEditingError;
+        if (!(editingError instanceof CanvasEditingError) || editingError.code !== 'IDENTIFIER_CONFLICT') {
+          this.copySelectionFailed = true;
+          return false;
+        }
+      }
+    }
+    this.copySelectionFailed = false;
     const previousSelection = this.selectedNodeIds.slice();
     const previousPrimary = this.primaryNodeId;
     this.selectedNodeIds = result.nodeIds.slice();
@@ -846,6 +866,7 @@ export struct FreeCanvas {
     const next = selectNodesForTap(this.selectedNodeIds, nodeId, this.multiSelectEnabled, toggleModifier);
     this.selectedNodeIds = next;
     this.primaryNodeId = primaryNodeForSelection(next, nodeId);
+    this.renderRevision++;
   }
 
   private beginNodeGesture(nodeId: string): void {
@@ -863,6 +884,7 @@ export struct FreeCanvas {
       this.selectedNodeIds = next;
       this.primaryNodeId = primaryNodeForSelection(next, nodeId);
     }
+    this.renderRevision++;
     this.dragStartPositions = this.draftDocument.nodes
       .filter((node: CanvasTextNode): boolean => this.selectedNodeIds.includes(node.id))
       .map((node: CanvasTextNode): CanvasNodePosition => ({ id: node.id, x: node.x, y: node.y }));
@@ -876,24 +898,36 @@ export struct FreeCanvas {
       return;
     }
     const scale = this.viewport().scale;
-    this.draftDocument = moveCanvasNodes(this.draftDocument, this.dragStartPositions, {
+    const rawDelta: CanvasPoint = {
       x: event.offsetX / scale,
       y: event.offsetY / scale
-    });
+    };
+    this.gestureMachine.moveNode(rawDelta.x, rawDelta.y);
+    const alignment = resolveCanvasAlignmentGuides(
+      this.dragStartPositions,
+      rawDelta,
+      this.draftDocument.nodes,
+      FREE_CANVAS_ALIGNMENT_THRESHOLD_VP
+    );
+    this.alignmentGuides = alignment.guides;
+    this.draftDocument = moveCanvasNodes(this.draftDocument, this.dragStartPositions, alignment.delta);
     this.refresh();
   }
 
   private endNodeDrag(): void {
+    this.alignmentGuides = [];
     if (this.dragStartPositions.length === 0) {
       return;
     }
     this.dragStartPositions = [];
+    this.gestureMachine.endNode(0);
     this.completeDraft('nodeMove', this.nodeDragStartDocument);
     this.nodeDragStartDocument = undefined;
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG, 'node drag end');
   }
 
   private cancelNodeDrag(): void {
+    this.alignmentGuides = [];
     if (this.dragStartPositions.length === 0) {
       return;
     }
@@ -902,13 +936,18 @@ export struct FreeCanvas {
     }
     this.dragStartPositions = [];
     this.nodeDragStartDocument = undefined;
+    this.gestureMachine.cancel();
     this.refresh();
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG, 'node drag cancelled');
   }
 
   private beginResize(node: CanvasTextNode): void {
+    if (this.pinchActive) {
+      return;
+    }
     this.resizeStartNode = node;
     this.resizeStartDocument = cloneCanvasDocument(this.draftDocument);
+    this.gestureMachine.beginNode();
   }
 
   private updateResize(handle: CanvasResizeHandle, event: GestureEvent): void {
@@ -916,9 +955,16 @@ export struct FreeCanvas {
       return;
     }
     const scale = this.viewport().scale;
-    const resized = resizeCanvasNode(this.resizeStartNode, handle, {
+    const delta: CanvasPoint = {
       x: event.offsetX / scale,
       y: event.offsetY / scale
+    };
+    if (this.gestureMachine.moveNode(delta.x, delta.y, 0) !== 'move') {
+      return;
+    }
+    const resized = resizeCanvasNode(this.resizeStartNode, handle, {
+      x: delta.x,
+      y: delta.y
     });
     this.draftDocument = replaceCanvasNode(this.draftDocument, resized);
     this.refresh();
@@ -929,6 +975,7 @@ export struct FreeCanvas {
       return;
     }
     this.resizeStartNode = undefined;
+    this.gestureMachine.endNode(0);
     this.completeDraft('nodeResize', this.resizeStartDocument);
     this.resizeStartDocument = undefined;
   }
@@ -942,6 +989,7 @@ export struct FreeCanvas {
     }
     this.resizeStartNode = undefined;
     this.resizeStartDocument = undefined;
+    this.gestureMachine.cancel();
     this.refresh();
   }
 
@@ -1073,10 +1121,23 @@ export struct FreeCanvas {
     this.gestureMachine.endEmpty();
     this.marqueeRect = undefined;
     this.marqueeActive = false;
+    const selectionChanged = !this.sameIdSet(this.selectionBeforeMarquee, this.selectedNodeIds);
     this.selectionBeforeMarquee = [];
+    if (selectionChanged && this.selectedNodeIds.length > 0) {
+      // The sweep decided this selection: the last swept node becomes primary so
+      // resize handles follow the current interaction instead of an earlier one.
+      this.primaryNodeId = this.selectedNodeIds[this.selectedNodeIds.length - 1];
+    }
     hilog.info(LOG_DOMAIN, GESTURE_LOG_TAG,
       'marquee end: selected=%{public}d multiSelect=%{public}s',
       this.selectedNodeIds.length, String(this.multiSelectEnabled));
+  }
+
+  private sameIdSet(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((id: string): boolean => right.includes(id));
   }
 
   private cancelMarquee(): void {
@@ -1093,6 +1154,7 @@ export struct FreeCanvas {
   }
 
   private beginPinch(event: GestureEvent): void {
+    this.cancelConnection();
     if (this.panStartDocument !== undefined) {
       this.draftDocument = this.panStartDocument;
       this.refresh();
@@ -1107,6 +1169,8 @@ export struct FreeCanvas {
       }
       this.selectionBeforeMarquee = [];
     }
+    this.cancelNodeDrag();
+    this.cancelResize();
     this.gestureMachine.beginPinch(validFingerCount(event));
     this.pinchActive = true;
     this.pinchStartViewport = this.viewport();
@@ -1137,6 +1201,7 @@ export struct FreeCanvas {
       'pinch end: scale=%{public}f', this.viewport().scale);
     this.completeDraft('viewport', this.pinchStartDocument);
     this.pinchStartDocument = undefined;
+    this.gestureMachine.cancel();
   }
 
   private cancelPinch(): void {
@@ -1151,6 +1216,7 @@ export struct FreeCanvas {
       this.refresh();
     }
     this.pinchStartDocument = undefined;
+    this.gestureMachine.cancel();
   }
 
   private handleMouse(event: MouseEvent): void {
@@ -1175,7 +1241,8 @@ export struct FreeCanvas {
     }
     if (action === MouseAction.Move) {
       if (!this.mousePressed) {
-        const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: clientX, y: clientY });
+        const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: clientX, y: clientY },
+          EDGE_TOUCH_TOLERANCE);
         const nextHoveredEdgeId = edge?.id ?? '';
         if (nextHoveredEdgeId !== this.hoveredEdgeId) {
           this.hoveredEdgeId = nextHoveredEdgeId;
@@ -1200,37 +1267,37 @@ export struct FreeCanvas {
     }
   }
 
+  /** Converts a measured area into a window-space rect for hit testing. */
+  private trackToolbarBounds(area: Area): CanvasRect {
+    return {
+      x: Number(area.globalPosition.x),
+      y: Number(area.globalPosition.y),
+      width: Number(area.width),
+      height: Number(area.height)
+    };
+  }
+
   private pointInsideToolbar(x: number, y: number): boolean {
-    if (this.selectedEdgeId.length > 0) {
-      const position = this.toolbarPosition(TOOLBAR_EDGE_WIDTH);
-      if (x >= position.x && x <= position.x + TOOLBAR_EDGE_WIDTH &&
-        y >= position.y && y <= position.y + TOOLBAR_HEIGHT) {
-        return true;
-      }
+    if (this.selectedEdgeId.length > 0 &&
+      this.insideTrackedBounds(x, y, this.edgeToolbarBounds)) {
+      return true;
     }
-    if (this.selectedNodeIds.length > 0 && this.selectedEdgeId.length === 0) {
-      const position = this.toolbarPosition(TOOLBAR_MULTI_WIDTH);
-      if (x >= position.x && x <= position.x + TOOLBAR_MULTI_WIDTH &&
-        y >= position.y && y <= position.y + TOOLBAR_HEIGHT) {
-        return true;
-      }
-      const colorPosition = this.toolbarPosition(240);
-      if (this.colorPopupVisible && x >= colorPosition.x && x <= colorPosition.x + 240 &&
-        y >= colorPosition.y - 300 && y <= colorPosition.y) {
-        return true;
-      }
-      const alignPosition = this.toolbarPosition(160);
-      if (this.alignPopupVisible && x >= alignPosition.x && x <= alignPosition.x + 160 &&
-        y >= alignPosition.y - 360 && y <= alignPosition.y) {
-        return true;
-      }
-      const morePosition = this.toolbarPosition(120);
-      if (this.morePopupVisible && x >= morePosition.x && x <= morePosition.x + 120 &&
-        y >= morePosition.y - 200 && y <= morePosition.y) {
-        return true;
-      }
+    if (this.selectedNodeIds.length > 0 && this.selectedEdgeId.length === 0 &&
+      this.insideTrackedBounds(x, y, this.nodeToolbarBounds)) {
+      return true;
     }
-    return false;
+    return (this.colorPopupVisible && this.insideTrackedBounds(x, y, this.colorPopupBounds)) ||
+      (this.alignPopupVisible && this.insideTrackedBounds(x, y, this.alignPopupBounds)) ||
+      (this.morePopupVisible && this.insideTrackedBounds(x, y, this.morePopupBounds));
+  }
+
+  private insideTrackedBounds(x: number, y: number, bounds: CanvasRect | undefined): boolean {
+    if (bounds === undefined) {
+      return false;
+    }
+    const left = bounds.x - this.containerGlobalX;
+    const top = bounds.y - this.containerGlobalY;
+    return x >= left && x <= left + bounds.width && y >= top && y <= top + bounds.height;
   }
 
   private hitTestNode(x: number, y: number): CanvasTextNode | undefined {
@@ -1287,7 +1354,8 @@ export struct FreeCanvas {
       this.selectNodeWithEvent(hitNode.id, event);
       return;
     }
-    const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: event.x, y: event.y });
+    const edge = findCanvasEdgeAt(this.draftDocument, this.viewport(), { x: event.x, y: event.y },
+      EDGE_TOUCH_TOLERANCE);
     if (edge === undefined) {
       const hadSelection = this.selectedNodeIds.length > 0 || this.selectedEdgeId.length > 0;
       this.clearSelection();
@@ -1490,7 +1558,7 @@ export struct FreeCanvas {
     const edge: CanvasEdge = {
       id: edgeId,
       fromNode: draft.sourceNodeId,
-      fromSide: draft.sourceSide,
+      fromSide: draft.reconnectEnd === 'from' ? target.side : draft.sourceSide,
       fromEnd: 'none',
       toNode: target.nodeId,
       toSide: target.side,
@@ -1508,6 +1576,7 @@ export struct FreeCanvas {
 
   private cancelConnection(): void {
     this.connectionDraft = undefined;
+    this.gestureMachine.cancel();
     this.refresh();
   }
 
@@ -1659,6 +1728,23 @@ export struct FreeCanvas {
         curve.endControl.x, curve.endControl.y, curve.end.x, curve.end.y);
       this.context.stroke();
       this.drawArrowHead(curve.endControl, curve.end);
+    }
+    if (this.alignmentGuides.length > 0) {
+      this.context.strokeStyle = CONNECTION_DRAFT_COLOR;
+      this.context.lineWidth = 1.5;
+      const viewport = this.viewport();
+      this.alignmentGuides.forEach((guide: CanvasAlignmentGuide): void => {
+        const screenPosition = worldToScreen({ x: guide.position, y: guide.position }, viewport);
+        this.context.beginPath();
+        if (guide.axis === 'x') {
+          this.context.moveTo(screenPosition.x, 0);
+          this.context.lineTo(screenPosition.x, this.containerHeight);
+        } else {
+          this.context.moveTo(0, screenPosition.y);
+          this.context.lineTo(this.containerWidth, screenPosition.y);
+        }
+        this.context.stroke();
+      });
     }
   }
 
@@ -1984,6 +2070,9 @@ export struct FreeCanvas {
       .backgroundColor('#F7FFFFFF')
       .border({ width: 1, color: '#FFD7DCE2', radius: 6 })
       .shadow({ radius: 8, color: '#33000000', offsetX: 0, offsetY: 2 })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.edgeToolbarBounds = this.trackToolbarBounds(newArea);
+      })
     }
   }
 
@@ -2027,6 +2116,9 @@ export struct FreeCanvas {
       .position({
         x: this.toolbarPosition(240).x,
         y: Math.max(8, this.toolbarPosition(240).y - 6 - 7 * 42)
+      })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.colorPopupBounds = this.trackToolbarBounds(newArea);
       })
     }
   }
@@ -2125,6 +2217,9 @@ export struct FreeCanvas {
         x: this.toolbarPosition(160).x,
         y: Math.max(8, this.toolbarPosition(160).y - 6 - 10 * 32)
       })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.alignPopupBounds = this.trackToolbarBounds(newArea);
+      })
     }
   }
 
@@ -2173,6 +2268,9 @@ export struct FreeCanvas {
       .position({
         x: this.toolbarPosition(120).x,
         y: Math.max(8, this.toolbarPosition(120).y - 6 - 4 * 32)
+      })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.morePopupBounds = this.trackToolbarBounds(newArea);
       })
     }
   }
@@ -2246,6 +2344,9 @@ export struct FreeCanvas {
       .backgroundColor('#F7FFFFFF')
       .border({ width: 1, color: '#FFD7DCE2', radius: 6 })
       .shadow({ radius: 8, color: '#33000000', offsetX: 0, offsetY: 2 })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.nodeToolbarBounds = this.trackToolbarBounds(newArea);
+      })
     }
   }
 
@@ -2304,7 +2405,6 @@ export struct FreeCanvas {
       viewportX: this.viewport().x,
       viewportY: this.viewport().y,
       viewportScale: this.viewport().scale,
-      renderTick: this.renderRevision,
       nodeContentBuilder: this.nodeContentBuilder,
       nodeContentContext: this.nodeContentContext,
       onCardSelect: (nodeId: string): void => this.selectNode(nodeId, false),

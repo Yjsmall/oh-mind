@@ -109,6 +109,13 @@ export default function canvasEditingGeometryTest() {
       expect(code).assertEqual('IDENTIFIER_CONFLICT');
     });
 
+    it('copiesDifferentEdgesWithConflictingGeneratedIds', 0, () => {
+      const first = copyCanvasSelection(editingDocument(), ['a'], 'copy-1').document;
+      const copied = copyCanvasSelection(first, ['b'], 'copy-1');
+      expect(copied.nodeIds.join(',')).assertEqual('b-copy-1');
+      expect(copied.edgeIds.length).assertEqual(1);
+    });
+
     it('findsTopmostConnectionTargetAndNearestSide', 0, () => {
       const target = findCanvasConnectionTarget(editingDocument(), { x: 10, y: 20, scale: 1 },
         { x: 210, y: 160 });
@@ -165,10 +172,26 @@ export default function canvasEditingGeometryTest() {
       const arranged = autoArrangeCanvasNodes(source, ['b', 'a']);
       expect(arranged.nodes[0].x).assertEqual(100);
       expect(arranged.nodes[0].y).assertEqual(100);
-      expect(arranged.nodes[1].x).assertEqual(100);
-      expect(arranged.nodes[1].y).assertEqual(248);
+      expect(arranged.nodes[1].x).assertEqual(296);
+      expect(arranged.nodes[1].y).assertEqual(100);
       expect(arranged.nodes[2].x).assertEqual(700);
       expect(arranged.nodes[2].y).assertEqual(500);
+    });
+
+    it('spreadsCycleBelowItsEntryNodeDepth', 0, () => {
+      const source: CanvasDocument = {
+        nodes: [editNode('r', 0, 0), editNode('a', 500, 500), editNode('b', 800, 800)],
+        edges: [
+          { id: 'r-a', fromNode: 'r', toNode: 'a' },
+          { id: 'a-b', fromNode: 'a', toNode: 'b' },
+          { id: 'b-a', fromNode: 'b', toNode: 'a' }
+        ]
+      };
+      const arranged = autoArrangeCanvasNodes(source, ['b', 'a', 'r']);
+      expect(arranged.nodes[0].id).assertEqual('r');
+      expect(arranged.nodes[0].x).assertEqual(0);
+      expect(arranged.nodes[1].x).assertEqual(196);
+      expect(arranged.nodes[2].x).assertEqual(392);
     });
   });
 }

@@ -64,7 +64,6 @@ export struct FreeCanvasNodeCard {
   @Param viewportX: number = 0;
   @Param viewportY: number = 0;
   @Param viewportScale: number = 1;
-  @Param renderTick: number = 0;
   @Param nodeContentBuilder: WrappedBuilder<[CanvasTextNode, Object]> = DEFAULT_CARD_BUILDER;
   @Param nodeContentContext: Object = new Object();
   @Event onCardSelect: (nodeId: string) => void = (_nodeId: string): void => {

@@ -79,5 +79,20 @@ export default function freeCanvasSaveSessionTest() {
       expect(session.getConfirmedRevision()).assertEqual(3);
       expect(session.getStatus()).assertEqual('failed');
     });
+
+    it('keepsFailureVisibleUntilASuccessLands', 0, () => {
+      const session = new FreeCanvasSaveSession(5);
+      const first = session.createRequest(saveDocument('one'));
+      expect(session.applyResult({ requestId: first.requestId, status: 'failure' })).assertEqual('applied');
+      expect(session.getStatus()).assertEqual('failed');
+      const retry = session.createRequest(saveDocument('two'));
+      expect(session.getStatus()).assertEqual('pending');
+      expect(session.applyResult({ requestId: retry.requestId, status: 'failure' })).assertEqual('applied');
+      expect(session.getStatus()).assertEqual('failed');
+      const last = session.createRequest(saveDocument('three'));
+      expect(session.applyResult({ requestId: last.requestId, status: 'success', revision: 6 }))
+        .assertEqual('applied');
+      expect(session.getStatus()).assertEqual('saved');
+    });
   });
 }

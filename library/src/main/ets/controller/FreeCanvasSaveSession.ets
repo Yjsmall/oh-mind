@@ -51,7 +51,8 @@ export class FreeCanvasSaveSession {
     this.sequence++;
     const requestId = this.sessionId + '-save-' + this.sequence;
     this.pending.push({ requestId, sequence: this.sequence });
-    this.failed = false;
+    // A previous failure stays visible until a success actually lands; the new
+    // request only flips the status to `pending` while it is in flight.
     return {
       requestId,
       baseRevision: this.confirmedRevision,

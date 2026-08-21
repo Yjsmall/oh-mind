@@ -129,20 +129,32 @@ export class FreeCanvasGestureMachine {
     return this.phase;
   }
 
-  /** First finger down on a node card. */
-  beginNode(): FreeCanvasGesturePhase {
+  /**
+   * First finger down on a node card. The origin lives in the same delta space
+   * the caller feeds to `moveNode` (0,0 = gesture start), so the drag threshold
+   * is measured against the gesture's own offset instead of a stale previous
+   * gesture's origin.
+   */
+  beginNode(x: number = 0, y: number = 0): FreeCanvasGesturePhase {
     if (this.pinchHeld) {
       return this.phase;
     }
+    this.fingers = 1;
+    this.originX = x;
+    this.originY = y;
+    this.lastX = x;
+    this.lastY = y;
     this.phase = 'nodeWait';
     return this.phase;
   }
 
   /**
-   * Node movement. Only after the card drag threshold does the gesture become a
-   * move; anything below stays a pending tap that resolves on release.
+   * Node movement. Only after the drag threshold does the gesture become a
+   * move; anything below stays a pending tap that resolves on release. Resize
+   * handles pass a zero threshold because they respond from the first pixel.
    */
-  moveNode(x: number, y: number): FreeCanvasNodeDecision {
+  moveNode(x: number, y: number, threshold: number = FREE_CANVAS_CARD_DRAG_THRESHOLD_VP):
+    FreeCanvasNodeDecision {
     if (this.pinchHeld || this.phase === 'editing') {
       return 'none';
     }
@@ -150,7 +162,7 @@ export class FreeCanvasGestureMachine {
       return 'move';
     }
     const distance = distanceBetween(this.originX, this.originY, x, y);
-    if (distance > FREE_CANVAS_CARD_DRAG_THRESHOLD_VP) {
+    if (distance > threshold) {
       this.phase = 'nodeDragging';
       return 'move';
     }

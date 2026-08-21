@@ -78,6 +78,24 @@ export default function freeCanvasGestureStateMachineTest() {
       expect(machine.moveNode(FREE_CANVAS_CARD_DRAG_THRESHOLD_VP + 2, 0)).assertEqual('move');
       expect(machine.endNode(FREE_CANVAS_CARD_DRAG_THRESHOLD_VP + 2)).assertEqual('move');
     });
+
+    it('nodeDragThresholdUsesTheNodeGestureOriginNotAPreviousOne', 0, () => {
+      const machine = new FreeCanvasGestureMachine();
+      machine.beginEmpty('touch', 1, 500, 400);
+      machine.endEmpty();
+      machine.beginNode();
+      expect(machine.moveNode(1, 1)).assertEqual('none');
+      expect(machine.moveNode(FREE_CANVAS_CARD_DRAG_THRESHOLD_VP + 1, 0)).assertEqual('move');
+    });
+
+    it('resizeConfirmsFromTheFirstPixelWithZeroThreshold', 0, () => {
+      const machine = new FreeCanvasGestureMachine();
+      machine.beginNode();
+      expect(machine.getPhase()).assertEqual('nodeWait');
+      expect(machine.moveNode(0, 0, 0)).assertEqual('none');
+      expect(machine.moveNode(1, 0, 0)).assertEqual('move');
+      expect(machine.endNode(0)).assertEqual('move');
+    });
   });
 
   describe('freeCanvasSelectionSemanticsTest', () => {

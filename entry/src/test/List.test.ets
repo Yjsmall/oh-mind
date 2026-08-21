@@ -18,6 +18,7 @@ import canvasJsonCodecTest from './CanvasJsonCodec.test';
 import freeCanvasGeometryTest from './FreeCanvasGeometry.test';
 import canvasEditingGeometryTest from './CanvasEditingGeometry.test';
 import canvasNodeEditingTest from './CanvasNodeEditing.test';
+import canvasAlignmentGeometryTest from './CanvasAlignmentGeometry.test';
 import freeCanvasSaveSessionTest from './FreeCanvasSaveSession.test';
 import freeCanvasGestureStateMachineTest from './FreeCanvasGestureStateMachine.test';
 
@@ -27,6 +28,7 @@ export default function testsuite() {
   freeCanvasGeometryTest();
   canvasEditingGeometryTest();
   canvasNodeEditingTest();
+  canvasAlignmentGeometryTest();
   freeCanvasSaveSessionTest();
   freeCanvasGestureStateMachineTest();
 }

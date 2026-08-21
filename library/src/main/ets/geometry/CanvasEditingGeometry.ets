@@ -68,6 +68,93 @@ function selectedIdSet(document: CanvasDocument, nodeIds: ReadonlyArray<string>)
   return selected;
 }
 
+/**
+ * Resolves one cyclic node's depth from the already-assigned graph: prefer the
+ * deepest assigned predecessor + 1 so the cycle spreads below its entry point;
+ * fall back to the shallowest assigned successor when only outgoing edges reach
+ * the acyclic part. Returns NaN while no assigned neighbour exists yet.
+ */
+function resolveCyclicDepth(predecessors: ReadonlyArray<string>,
+  targets: ReadonlyArray<string>, depth: Map<string, number>): number {
+  let resolved = Number.NaN;
+  for (let index = 0; index < predecessors.length; index++) {
+    const value = depth.get(predecessors[index]);
+    if (value !== undefined) {
+      resolved = Number.isNaN(resolved) ? value + 1 : Math.max(resolved, value + 1);
+    }
+  }
+  if (Number.isNaN(resolved)) {
+    for (let index = 0; index < targets.length; index++) {
+      const value = depth.get(targets[index]);
+      if (value !== undefined) {
+        resolved = Number.isNaN(resolved) ? value : Math.min(resolved, value);
+      }
+    }
+  }
+  return resolved;
+}
+
+function assignCanvasLayerDepth(nodeIds: ReadonlyArray<string>,
+  outgoing: Map<string, string[]>, incoming: Map<string, number>): Map<string, number> {
+  const depth = new Map<string, number>();
+  const remaining = new Map<string, number>();
+  const queue: string[] = [];
+  nodeIds.forEach((id: string): void => {
+    const count = incoming.get(id) ?? 0;
+    remaining.set(id, count);
+    if (count === 0) {
+      depth.set(id, 0);
+      queue.push(id);
+    }
+  });
+  queue.sort(compareCanvasIds);
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    outgoing.get(id)!.forEach((target: string): void => {
+      depth.set(target, Math.max(depth.get(target) ?? 0, depth.get(id)! + 1));
+      const count = remaining.get(target)! - 1;
+      remaining.set(target, count);
+      if (count === 0) {
+        queue.push(target);
+        queue.sort(compareCanvasIds);
+      }
+    });
+  }
+  const incomingEdges = new Map<string, string[]>();
+  nodeIds.forEach((id: string): void => {
+    incomingEdges.set(id, []);
+  });
+  nodeIds.forEach((id: string): void => {
+    outgoing.get(id)!.forEach((target: string): void => {
+      incomingEdges.get(target)!.push(id);
+    });
+  });
+  const cyclic: string[] = nodeIds.filter((id: string): boolean => !depth.has(id))
+    .sort(compareCanvasIds);
+  while (cyclic.length > 0) {
+    let seeded = false;
+    for (let index = 0; index < cyclic.length; index++) {
+      const id = cyclic[index];
+      const resolved = resolveCyclicDepth(incomingEdges.get(id)!, outgoing.get(id)!, depth);
+      if (!Number.isNaN(resolved)) {
+        depth.set(id, resolved);
+        seeded = true;
+      }
+    }
+    if (!seeded) {
+      // A cycle with no edge to the acyclic part: anchor its first node at the
+      // root layer and let the next pass spread the rest of the cycle from it.
+      depth.set(cyclic[0], 0);
+    }
+    for (let index = cyclic.length - 1; index >= 0; index--) {
+      if (depth.has(cyclic[index])) {
+        cyclic.splice(index, 1);
+      }
+    }
+  }
+  return depth;
+}
+
 function cloneWithNodes(document: CanvasDocument, nodes: ReadonlyArray<CanvasTextNode>): CanvasDocument {
   const copy = cloneCanvasDocument(document);
   const candidate: CanvasDocument = {
@@ -233,6 +320,8 @@ export function copyCanvasSelection(document: CanvasDocument, nodeIds: ReadonlyA
   }
   const existingNodeIds = new Set<string>(document.nodes.map((node: CanvasTextNode): string => node.id));
   const existingEdgeIds = new Set<string>(document.edges.map((edge: CanvasEdge): string => edge.id));
+  const reservedNodeIds = new Set<string>(existingNodeIds);
+  const reservedEdgeIds = new Set<string>(existingEdgeIds);
   const copiedNodeIds: string[] = [];
   const copiedEdgeIds: string[] = [];
   const idMap = new Map<string, string>();
@@ -243,10 +332,11 @@ export function copyCanvasSelection(document: CanvasDocument, nodeIds: ReadonlyA
       return;
     }
     const id = node.id + '-' + namespace;
-    if (existingNodeIds.has(id)) {
+    if (reservedNodeIds.has(id)) {
       throw new CanvasEditingError('IDENTIFIER_CONFLICT', `Canvas copy node ID already exists: ${id}`);
     }
     existingNodeIds.add(id);
+    reservedNodeIds.add(id);
     idMap.set(node.id, id);
     copiedNodeIds.push(id);
     nodes.push({
@@ -265,10 +355,11 @@ export function copyCanvasSelection(document: CanvasDocument, nodeIds: ReadonlyA
       return;
     }
     const id = edge.id + '-' + namespace;
-    if (existingEdgeIds.has(id)) {
+    if (reservedEdgeIds.has(id)) {
       throw new CanvasEditingError('IDENTIFIER_CONFLICT', `Canvas copy edge ID already exists: ${id}`);
     }
     existingEdgeIds.add(id);
+    reservedEdgeIds.add(id);
     copiedEdgeIds.push(id);
     edges.push({
       id,
@@ -378,30 +469,8 @@ export function autoArrangeCanvasNodes(document: CanvasDocument, nodeIds: Readon
   outgoing.forEach((targets: string[]): void => {
     targets.sort();
   });
-  const depth = new Map<string, number>();
-  const queue = nodes.filter((node: CanvasTextNode): boolean => indegree.get(node.id) === 0)
-    .map((node: CanvasTextNode): string => node.id).sort();
-  queue.forEach((id: string): void => {
-    depth.set(id, 0);
-  });
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    const targets = outgoing.get(id)!;
-    for (let index = 0; index < targets.length; index++) {
-      const target = targets[index];
-      depth.set(target, Math.max(depth.get(target) ?? 0, (depth.get(id) ?? 0) + 1));
-      indegree.set(target, indegree.get(target)! - 1);
-      if (indegree.get(target) === 0) {
-        queue.push(target);
-        queue.sort((left: string, right: string): number => compareCanvasIds(left, right));
-      }
-    }
-  }
-  nodes.map((node: CanvasTextNode): string => node.id).sort().forEach((id: string): void => {
-    if (!depth.has(id)) {
-      depth.set(id, 0);
-    }
-  });
+    const depth = assignCanvasLayerDepth(nodes.map((node: CanvasTextNode): string => node.id),
+      outgoing, indegree);
   const layers = new Map<number, CanvasTextNode[]>();
   nodes.forEach((node: CanvasTextNode): void => {
     const layer = depth.get(node.id)!;

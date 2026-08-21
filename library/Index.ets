@@ -105,6 +105,15 @@ export type {
   CanvasSize
 } from './src/main/ets/geometry/FreeCanvasGeometry';
 export {
+  FREE_CANVAS_ALIGNMENT_THRESHOLD_VP,
+  resolveCanvasAlignmentGuides
+} from './src/main/ets/geometry/CanvasAlignmentGeometry';
+export type {
+  CanvasAlignmentGuide,
+  CanvasAlignmentGuideKind,
+  CanvasAlignmentResult
+} from './src/main/ets/geometry/CanvasAlignmentGeometry';
+export {
   createCanvasBezierCurve,
   distanceToCanvasBezierCurve,
   getCanvasBezierPointAt,
