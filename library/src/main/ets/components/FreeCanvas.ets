@@ -97,9 +97,8 @@ import {
   primaryNodeForSelection
 } from '../gesture/FreeCanvasGestureMachine';
 import { FreeCanvasNodeCard } from './FreeCanvasNodeCard';
+import { FreeCanvasNodeHandles } from './FreeCanvasNodeHandles';
 
-const RESIZE_HANDLE_SIZE: number = 12;
-const RESIZE_HANDLE_HALF: number = RESIZE_HANDLE_SIZE / 2;
 const NODE_CORNER_RADIUS: number = 6;
 const DEFAULT_NODE_BACKGROUND: string = '#FFFFFFFF';
 const DEFAULT_NODE_BORDER: string = '#FFD7DCE2';
@@ -836,7 +835,7 @@ export struct FreeCanvas {
 
   private selectNode(nodeId: string, toggleModifier: boolean): void {
     if (this.editingNodeId.length > 0) {
-      return;
+      this.commitNodeEdit();
     }
     this.selectedEdgeId = '';
     this.edgeLabelDraft = '';
@@ -853,7 +852,7 @@ export struct FreeCanvas {
 
   private selectNodeWithEvent(nodeId: string, event: ClickEvent): void {
     if (this.editingNodeId.length > 0) {
-      return;
+      this.commitNodeEdit();
     }
     const toggleModifier = event.getModifierKeyState?.(['Ctrl']) === true ||
       event.getModifierKeyState?.(['Shift']) === true;
@@ -876,8 +875,11 @@ export struct FreeCanvas {
   }
 
   private beginNodeGesture(nodeId: string): void {
-    if (this.pinchActive || this.editingNodeId.length > 0) {
+    if (this.pinchActive) {
       return;
+    }
+    if (this.editingNodeId.length > 0) {
+      this.commitNodeEdit();
     }
     this.nodeDragStartDocument = cloneCanvasDocument(this.draftDocument);
     this.selectedEdgeId = '';
@@ -1003,6 +1005,9 @@ export struct FreeCanvas {
     if (this.pinchActive) {
       return;
     }
+    if (this.editingNodeId.length > 0) {
+      this.commitNodeEdit();
+    }
     this.panStartViewport = this.viewport();
     this.panStartDocument = cloneCanvasDocument(this.draftDocument);
     this.gestureMachine.beginEmpty('touch', 1, 0, 0);
@@ -1064,6 +1069,9 @@ export struct FreeCanvas {
   }
 
   private armMarquee(x: number, y: number): void {
+    if (this.editingNodeId.length > 0) {
+      this.commitNodeEdit();
+    }
     this.gestureMachine.confirmLongPress();
     this.selectedEdgeId = '';
     this.edgeLabelDraft = '';
@@ -1340,13 +1348,34 @@ export struct FreeCanvas {
     this.panStartDocument = undefined;
   }
 
+  private handleCanvasTouch(event: TouchEvent): void {
+    if (event.type !== TouchType.Up || this.editingNodeId.length === 0) {
+      return;
+    }
+    const touch = event.changedTouches.length > 0 ? event.changedTouches[0] : undefined;
+    if (touch === undefined) {
+      return;
+    }
+    const x = touch.x;
+    const y = touch.y;
+    if (this.pointInsideToolbar(x, y)) {
+      return;
+    }
+    if (this.hitTestNode(x, y) !== undefined) {
+      return;
+    }
+    this.commitNodeEdit();
+  }
+
   private handleBackgroundClick(event: ClickEvent): void {
     if (this.suppressNextBackgroundClick) {
       this.suppressNextBackgroundClick = false;
       return;
     }
+    // Tapping outside the card leaves editing and auto-saves the draft, so a
+    // separate save button is never required.
     if (this.editingNodeId.length > 0) {
-      return;
+      this.commitNodeEdit();
     }
     // Clicks on floating toolbars bubble to the canvas; never let them clear the
     // selection they operate on.
@@ -1647,21 +1676,26 @@ export struct FreeCanvas {
     };
   }
 
-  private handleScreenPoint(node: CanvasTextNode, handle: CanvasResizeHandle): CanvasPoint {
-    const rect = this.nodeScreenRect(node);
-    let x = rect.x + rect.width / 2;
-    let y = rect.y + rect.height / 2;
-    if (handle.includes('w')) {
-      x = rect.x;
-    } else if (handle.includes('e')) {
-      x = rect.x + rect.width;
+  private primaryNode(): CanvasTextNode | undefined {
+    return this.findNode(this.primaryNodeId);
+  }
+
+  private primaryHandleCenter(): CanvasPoint {
+    const node = this.primaryNode();
+    const rect = node === undefined ? undefined : this.nodeScreenRect(node);
+    if (rect === undefined) {
+      return { x: 0, y: 0 };
     }
-    if (handle.includes('n')) {
-      y = rect.y;
-    } else if (handle.includes('s')) {
-      y = rect.y + rect.height;
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  }
+
+  private primaryHandleHalfSize(): CanvasPoint {
+    const node = this.primaryNode();
+    const rect = node === undefined ? undefined : this.nodeScreenRect(node);
+    if (rect === undefined) {
+      return { x: 0, y: 0 };
     }
-    return { x, y };
+    return { x: rect.width / 2, y: rect.height / 2 };
   }
 
   private inferDraftEndSide(start: CanvasPoint, end: CanvasPoint): CanvasSide {
@@ -1831,75 +1865,44 @@ export struct FreeCanvas {
   }
 
   @Builder
-  private ResizeHandle(node: CanvasTextNode, handle: CanvasResizeHandle) {
-    Rect()
-      .width(RESIZE_HANDLE_SIZE)
-      .height(RESIZE_HANDLE_SIZE)
-      .id('free-canvas-resize-' + handle)
-      .radius(2)
-      .fill('#FFFFFFFF')
-      .stroke(SELECTED_NODE_BORDER)
-      .strokeWidth(2)
-      .position({
-        x: this.handleScreenPoint(this.latestNode(node), handle).x - RESIZE_HANDLE_HALF,
-        y: this.handleScreenPoint(this.latestNode(node), handle).y - RESIZE_HANDLE_HALF
-      })
-      .gesture(
-        PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
-          .onActionStart((): void => this.beginResize(this.latestNode(node)))
-          .onActionUpdate((event: GestureEvent): void => this.updateResize(handle, event))
-          .onActionEnd((): void => this.endResize())
-          .onActionCancel((): void => this.cancelResize())
-      )
-  }
-
-  @Builder
-  private PrimaryResizeHandles() {
+  private PrimaryNodeHandles() {
     if (this.editingNodeId.length === 0 && this.primaryNodeId.length > 0) {
-      if (this.findNode(this.primaryNodeId) !== undefined) {
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'nw')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'n')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'ne')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'e')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'se')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 's')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'sw')
-        this.ResizeHandle(this.findNode(this.primaryNodeId)!, 'w')
-      }
-    }
-  }
-
-  @Builder
-  private ConnectionAnchor(node: CanvasTextNode, side: CanvasSide) {
-    Circle()
-      .width(ANCHOR_SIZE)
-      .height(ANCHOR_SIZE)
-      .id('free-canvas-anchor-' + side)
-      .fill('#FFFFFFFF')
-      .stroke(SELECTED_NODE_BORDER)
-      .strokeWidth(2)
-      .position({
-        x: this.connectionHandlePoint(this.latestNode(node), side).x - ANCHOR_HALF,
-        y: this.connectionHandlePoint(this.latestNode(node), side).y - ANCHOR_HALF
+      FreeCanvasNodeHandles({
+        centerX: this.primaryHandleCenter().x,
+        centerY: this.primaryHandleCenter().y,
+        halfWidth: this.primaryHandleHalfSize().x,
+        halfHeight: this.primaryHandleHalfSize().y,
+        onResizeStart: (_handle: CanvasResizeHandle): void => {
+          const node = this.primaryNode();
+          if (node !== undefined) {
+            this.beginResize(node);
+          }
+        },
+        onResizeUpdate: (handle: CanvasResizeHandle, event: GestureEvent): void => {
+          this.updateResize(handle, event);
+        },
+        onResizeEnd: (): void => {
+          this.endResize();
+        },
+        onResizeCancel: (): void => {
+          this.cancelResize();
+        },
+        onAnchorStart: (side: CanvasSide): void => {
+          const node = this.primaryNode();
+          if (node !== undefined) {
+            this.beginConnection(node, side);
+          }
+        },
+        onAnchorUpdate: (event: GestureEvent): void => {
+          this.updateConnection(event);
+        },
+        onAnchorEnd: (): void => {
+          this.endConnection();
+        },
+        onAnchorCancel: (): void => {
+          this.cancelConnection();
+        }
       })
-      .gesture(
-        PanGesture({ fingers: 1, direction: PanDirection.All, distance: 0 })
-          .onActionStart((): void => this.beginConnection(this.latestNode(node), side))
-          .onActionUpdate((event: GestureEvent): void => this.updateConnection(event))
-          .onActionEnd((): void => this.endConnection())
-          .onActionCancel((): void => this.cancelConnection())
-      )
-  }
-
-  @Builder
-  private PrimaryConnectionAnchors() {
-    if (this.editingNodeId.length === 0 && this.primaryNodeId.length > 0) {
-      if (this.findNode(this.primaryNodeId) !== undefined) {
-        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'top')
-        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'right')
-        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'bottom')
-        this.ConnectionAnchor(this.findNode(this.primaryNodeId)!, 'left')
-      }
     }
   }
 
@@ -2298,9 +2301,6 @@ export struct FreeCanvas {
       Column({ space: 0 }) {
         Row({ space: 4 }) {
           if (this.editingNodeId.length > 0) {
-            this.ToolbarButton('保存', 'free-canvas-node-edit-save', (): void => {
-              this.commitNodeEdit();
-            })
             this.ToolbarButton('取消', 'free-canvas-node-edit-cancel', (): void => {
               this.cancelNodeEdit();
             })
@@ -2447,8 +2447,7 @@ export struct FreeCanvas {
           this.NodeCard(item.item)
         })
 
-      this.PrimaryResizeHandles()
-      this.PrimaryConnectionAnchors()
+      this.PrimaryNodeHandles()
       this.SelectedEdgeEndpoints()
       this.Marquee()
       this.ColorPopup()
@@ -2465,6 +2464,7 @@ export struct FreeCanvas {
     .backgroundColor('#FFF5F7F9')
     .focusable(true)
     .focusOnTouch(true)
+    .onTouch((event: TouchEvent): void => this.handleCanvasTouch(event))
     .onClick((event: ClickEvent): void => this.handleBackgroundClick(event))
     .onMouse((event: MouseEvent): void => this.handleMouse(event))
     .onHover((isHover: boolean): void => {

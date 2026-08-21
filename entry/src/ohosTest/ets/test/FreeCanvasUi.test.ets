@@ -127,19 +127,25 @@ export default function freeCanvasUiTest() {
 
     it('createsEditsStylesAndActivatesTextNode', 0, async () => {
       const driver = Driver.create();
+      const canvas = await component(driver, 'free-canvas');
+      const canvasBounds = await canvas.getBounds();
       await (await component(driver, 'toolbar-add')).click();
       let editor = await component(driver, 'free-canvas-node-editor');
       await editor.inputText('# Device note');
-      await (await component(driver, 'free-canvas-node-edit-save')).click();
-      await driver.delayMs(UI_SETTLE_MS);
-
-      await (await component(driver, 'free-canvas-node-edit')).click();
-      editor = await component(driver, 'free-canvas-node-editor');
-      await editor.inputText('# Device note v2');
-      await (await component(driver, 'free-canvas-node-edit-save')).click();
+      await driver.click(canvasBounds.right - 20, canvasBounds.top + 20);
       await driver.delayMs(UI_SETTLE_MS);
       expect((await driver.findComponents(ON.id('free-canvas-node-editor'))).length).assertEqual(0);
 
+      const card = await component(driver, 'free-canvas-node-node-1');
+      await card.click();
+      await (await component(driver, 'free-canvas-node-edit')).click();
+      editor = await component(driver, 'free-canvas-node-editor');
+      await editor.inputText('# Device note v2');
+      await driver.click(canvasBounds.right - 20, canvasBounds.top + 20);
+      await driver.delayMs(UI_SETTLE_MS);
+      expect((await driver.findComponents(ON.id('free-canvas-node-editor'))).length).assertEqual(0);
+
+      await card.click();
       await (await component(driver, 'free-canvas-node-color')).click();
       await driver.delayMs(UI_SETTLE_MS);
       await (await component(driver, 'free-canvas-node-color-5')).click();
