@@ -62,6 +62,7 @@ class ControllerProbe implements FreeCanvasControllerBinding {
   readonly discardPendingChange = (): void => {
     this.discardCount++;
   };
+  readonly currentDraft = (): CanvasDocument | undefined => undefined;
   readonly setMultiSelectEnabled = (enabled: boolean): void => {
     this.multiSelect = enabled;
   };

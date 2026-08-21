@@ -1,3 +1,4 @@
+import { CanvasDocument } from '../model/CanvasModel';
 import {
   CanvasAlignment,
   CanvasArrangement,
@@ -31,6 +32,8 @@ export interface FreeCanvasControllerBinding {
   readonly retrySave: () => boolean;
   readonly flushPendingChange: () => boolean;
   readonly discardPendingChange: () => void;
+  /** Reads the live draft (including unpublished edits) for host-side candidates. */
+  readonly currentDraft: () => CanvasDocument | undefined;
   readonly setMultiSelectEnabled: (enabled: boolean) => void;
   readonly setSelectedEdgeLabel: (label: string) => boolean;
   readonly setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection) => boolean;
@@ -142,6 +145,11 @@ export class FreeCanvasController {
   /** Drops the local unsaved candidate (e.g. when the current document is deleted). */
   discardPendingChange(): void {
     this.binding?.discardPendingChange();
+  }
+
+  /** Latest draft document, including edits that have not been published yet. */
+  currentDraft(): CanvasDocument | undefined {
+    return this.binding?.currentDraft();
   }
 
   /** Enables or disables additive multi-select semantics for taps and marquees. */

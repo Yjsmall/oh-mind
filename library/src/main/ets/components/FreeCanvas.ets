@@ -326,6 +326,7 @@ export struct FreeCanvas {
     retrySave: (): boolean => this.retrySave(),
     flushPendingChange: (): boolean => this.flushPendingChange(),
     discardPendingChange: (): void => this.discardPendingChange(),
+    currentDraft: (): CanvasDocument => this.draftDocument,
     setMultiSelectEnabled: (enabled: boolean): void => this.setMultiSelectEnabled(enabled),
     setSelectedEdgeLabel: (label: string): boolean => this.setSelectedEdgeLabel(label),
     setSelectedEdgeDirection: (direction: FreeCanvasEdgeDirection): boolean =>
@@ -347,6 +348,11 @@ export struct FreeCanvas {
 
   @Monitor('document')
   private onDocumentChanged(): void {
+    // An echo of the last published document (the host confirming a save) must
+    // not discard a newer pending autosave candidate.
+    if (serializeCanvasJson(this.document) === this.inputSnapshotJson) {
+      return;
+    }
     this.discardPendingChange();
     this.acceptInputDocument();
   }
