@@ -98,9 +98,6 @@ function resolveAxisSnap(movingAnchors: CanvasAnchor[], targetAnchors: CanvasAnc
   let best: AxisSnap | undefined = undefined;
   for (const movingAnchor of movingAnchors) {
     for (const targetAnchor of targetAnchors) {
-      if (targetAnchor.kind !== movingAnchor.kind) {
-        continue;
-      }
       const offset = targetAnchor.value - movingAnchor.value;
       const distance = Math.abs(offset);
       if (distance > threshold || (distance === 0 && !includeZeroOffset)) {

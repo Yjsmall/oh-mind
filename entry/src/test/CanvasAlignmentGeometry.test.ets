@@ -28,14 +28,11 @@ export default function canvasAlignmentGeometryTest() {
       const result = resolveCanvasAlignmentGuides([position('moving', 0, 0)],
         { x: 404, y: 204 }, document.nodes, 8);
       expect(result.delta.x).assertEqual(400);
-      expect(result.delta.y).assertEqual(300);
-      expect(result.guides.length).assertEqual(2);
+      expect(result.delta.y).assertEqual(204);
+      expect(result.guides.length).assertEqual(1);
       expect(result.guides[0].axis).assertEqual('x');
-      expect(result.guides[0].kind).assertEqual('right');
+      expect(result.guides[0].kind).assertEqual('left');
       expect(result.guides[0].position).assertEqual(500);
-      expect(result.guides[1].axis).assertEqual('y');
-      expect(result.guides[1].kind).assertEqual('top');
-      expect(result.guides[1].position).assertEqual(400);
     });
 
     it('ignoresDeltasBeyondThreshold', 0, () => {

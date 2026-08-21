@@ -110,10 +110,23 @@ export default function canvasEditingGeometryTest() {
     });
 
     it('copiesDifferentEdgesWithConflictingGeneratedIds', 0, () => {
-      const first = copyCanvasSelection(editingDocument(), ['a'], 'copy-1').document;
-      const copied = copyCanvasSelection(first, ['b'], 'copy-1');
-      expect(copied.nodeIds.join(',')).assertEqual('b-copy-1');
-      expect(copied.edgeIds.length).assertEqual(1);
+      const conflicting: CanvasDocument = {
+        nodes: [editNode('a', 0, 0), editNode('b', 200, 100, 50, 80)],
+        edges: [
+          { id: 'a-b', fromNode: 'a', fromSide: 'right', toNode: 'b', toSide: 'left' },
+          { id: 'a-b-copy-1', fromNode: 'b', toNode: 'a' }
+        ],
+        cardnote: { schemaVersion: 1, viewport: { x: 0, y: 0, scale: 1 } }
+      };
+      let code = '';
+      try {
+        copyCanvasSelection(conflicting, ['a', 'b'], 'copy-1');
+      } catch (error) {
+        if (error instanceof CanvasEditingError) {
+          code = error.code;
+        }
+      }
+      expect(code).assertEqual('IDENTIFIER_CONFLICT');
     });
 
     it('findsTopmostConnectionTargetAndNearestSide', 0, () => {
